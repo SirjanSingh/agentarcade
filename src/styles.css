@@ -268,6 +268,105 @@ body.has-devbar #scorecard {
   color: rgba(255, 255, 255, 0.72);
 }
 
+/* ---------- gradient sort ---------- */
+
+.hue {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  justify-content: center;
+}
+
+.hue-grid {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  max-width: 340px;
+  transition: opacity 200ms ease;
+}
+
+.hue[data-state="cleared"] .hue-grid {
+  opacity: 0.55;
+}
+
+.hue-tile {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 6px;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 110ms ease, box-shadow 110ms ease;
+}
+
+.hue-tile:hover {
+  transform: scale(1.06);
+}
+
+.hue-tile.selected {
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+}
+
+/* Corner tiles are fixed reference points, so they must not look clickable. */
+.hue-tile.anchor {
+  cursor: default;
+  border-radius: 10px;
+}
+
+.hue-tile.anchor:hover {
+  transform: none;
+}
+
+.hue-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- metronome ---------- */
+
+.metronome,
+.aim,
+.untangle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+}
+
+.metronome-face {
+  max-width: 100%;
+}
+
+.metronome-meta,
+.aim-meta,
+.untangle-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ---------- aim / untangle boards ---------- */
+
+.aim-board {
+  cursor: crosshair;
+}
+
+.untangle-board {
+  cursor: grab;
+}
+
+.untangle-board:active {
+  cursor: grabbing;
+}
+
 /* ---------- typing ---------- */
 
 .typing {
