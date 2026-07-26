@@ -1,0 +1,263 @@
+:root {
+  --bg: #0c0d11;
+  --panel: #12141a;
+  --line: rgba(255, 255, 255, 0.07);
+  --fg: #e8eaee;
+  --muted: #8b909b;
+  --accent: #7fd6a4;
+  --warn: #e0704a;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --line: rgba(0, 0, 0, 0.09);
+    --fg: #16181d;
+    --muted: #6b7280;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: var(--mono);
+  color: var(--fg);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+#titlebar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+#titlebar .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+#hint {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+#stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  min-height: 0;
+}
+
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#waiting {
+  margin-left: auto;
+}
+
+#waiting::before {
+  content: "● ";
+  color: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+/* ---------- score card ---------- */
+
+#scorecard {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+#scorecard[hidden] {
+  display: none;
+}
+
+#scorecard .card {
+  text-align: center;
+  animation: rise 180ms ease-out;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+#scorecard .headline {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+#scorecard .score {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+#scorecard .sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- snake ---------- */
+
+.board {
+  border-radius: 8px;
+  background: var(--panel);
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* ---------- reaction ---------- */
+
+.reaction-pad {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  transition: background 90ms linear;
+}
+
+.reaction-pad[data-phase="waiting"] {
+  background: #7a2f24;
+}
+
+.reaction-pad[data-phase="go"] {
+  background: #2f7a52;
+}
+
+.reaction-pad[data-phase="early"] {
+  background: #6b4a1f;
+}
+
+.reaction-headline {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.reaction-detail {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.reaction-pad[data-phase="waiting"] .reaction-detail,
+.reaction-pad[data-phase="go"] .reaction-detail,
+.reaction-pad[data-phase="early"] .reaction-detail {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ---------- typing ---------- */
+
+.typing {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+}
+
+.typing-stream {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-content: flex-start;
+  height: 132px;
+  overflow: hidden;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.typing[data-state="done"] .typing-stream {
+  opacity: 0.4;
+}
+
+.word.done {
+  color: color-mix(in srgb, var(--fg) 45%, transparent);
+}
+
+.word.active {
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 1px;
+}
+
+.word .hit {
+  color: var(--fg);
+}
+
+.word .miss {
+  color: var(--warn);
+  text-decoration: underline;
+}
+
+.word .extra {
+  color: var(--warn);
+  opacity: 0.6;
+}
+
+.typing-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
