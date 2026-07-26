@@ -93,6 +93,7 @@ export function createReaction(): GameModule {
       frozen = true;
       window.clearTimeout(timer);
       if (times.length > 0) {
+        api.reportScore(Math.min(...times));
         setPhase("result", `${Math.round(Math.min(...times))} ms`, runSummary());
       } else {
         setPhase("idle", "No attempts", "that was a quick one");

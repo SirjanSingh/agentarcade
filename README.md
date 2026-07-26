@@ -12,7 +12,7 @@ Esc to get back to work. The `Stop` hook closes the game for you.
 </p>
 <p align="center"><em>Claude finishes, you get your score, the window leaves. No keypress.</em></p>
 
-Seven games, a random one each time, never the same twice in a row:
+Eight games, a random one each time, never the same twice in a row:
 
 | Game | You | Scored on |
 |---|---|---|
@@ -23,6 +23,7 @@ Seven games, a random one each time, never the same twice in a row:
 | **Metronome** | tap space on the beat | mean timing error, ms |
 | **Aim** | click the targets | targets per minute |
 | **Untangle** | drag nodes until no lines cross | % of crossings removed |
+| **Boulder** | jump over code blocks, outrun the sunburst | metres per minute |
 
 <table>
   <tr>

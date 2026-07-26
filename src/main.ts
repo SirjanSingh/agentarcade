@@ -21,8 +21,13 @@ let currentBest: number | null = null;
 let startedAt = 0;
 let hideTimer: number | undefined;
 let showingStats = false;
+/** Bumps on every show; stale async starts bail out when this moves. */
+let startSeq = 0;
+/** In-flight mount — finish/stop must wait so freeze() hits a live game. */
+let starting: Promise<void> | null = null;
 
 async function showStats(): Promise<void> {
+  if (starting) await starting;
   teardown();
   showingStats = true;
   label.textContent = "Stats";
@@ -32,35 +37,46 @@ async function showStats(): Promise<void> {
 }
 
 async function startGame(gameId: string): Promise<void> {
+  const seq = ++startSeq;
+  if (starting) await starting;
   teardown();
   showingStats = false;
 
   const factory = REGISTRY[gameId] ?? REGISTRY[GAME_IDS[0]];
   const game = factory();
-  current = game;
-  currentScore = null;
-  startedAt = performance.now();
 
-  const stats = await getStats();
-  currentBest = stats.games[game.id]?.best ?? null;
+  const run = (async () => {
+    const stats = await getStats();
+    if (seq !== startSeq) return;
 
-  label.textContent = game.label;
-  bestEl.textContent = currentBest === null ? "no personal best yet" : `best ${formatScore(game, currentBest)}`;
-  waitingEl.hidden = false;
-  scorecard.hidden = true;
+    currentScore = null;
+    startedAt = performance.now();
+    currentBest = stats.games[game.id]?.best ?? null;
 
-  game.mount(stage, {
-    reportScore(score: number) {
-      currentScore = score;
-    },
-    get best() {
-      return currentBest;
-    },
-  });
+    label.textContent = game.label;
+    bestEl.textContent = currentBest === null ? "no personal best yet" : `best ${formatScore(game, currentBest)}`;
+    waitingEl.hidden = false;
+    scorecard.hidden = true;
+
+    current = game;
+    game.mount(stage, {
+      reportScore(score: number) {
+        if (current === game) currentScore = score;
+      },
+      get best() {
+        return currentBest;
+      },
+    });
+  })();
+
+  starting = run;
+  await run;
+  if (starting === run) starting = null;
 }
 
 /** Claude finished: stop the run, show the result, then get out of the way. */
 async function finishAndHide(): Promise<void> {
+  if (starting) await starting;
   // Nothing to score if the user was reading their stats when Claude finished.
   if (!current || showingStats) {
     await requestHide();
@@ -70,7 +86,7 @@ async function finishAndHide(): Promise<void> {
   game.freeze();
   waitingEl.hidden = true;
 
-  if (currentScore !== null) {
+  if (currentScore !== null && Number.isFinite(currentScore)) {
     const beat = isBetter(game, currentScore, currentBest);
     finalScore.textContent = formatScore(game, currentScore);
     finalSub.textContent = beat
@@ -100,7 +116,8 @@ function teardown(): void {
 
 /** Esc dismisses immediately, but the run still counts. */
 async function dismissNow(): Promise<void> {
-  if (current && currentScore !== null) {
+  if (starting) await starting;
+  if (current && currentScore !== null && Number.isFinite(currentScore)) {
     current.freeze();
     await recordResult(current.id, currentScore, performance.now() - startedAt, current.lowerIsBetter);
     currentScore = null;
@@ -139,5 +156,5 @@ installDevBar(installBrowserDriver(GAME_IDS), () => void showStats());
 
 // If a hook fired while this webview was still loading, catch up on it.
 void pendingGame().then((gameId) => {
-  if (gameId && !current) void startGame(gameId);
+  if (gameId && !current && !starting) void startGame(gameId);
 });

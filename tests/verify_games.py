@@ -34,7 +34,7 @@ with sync_playwright() as p:
     page.goto(URL, wait_until="networkidle")
     check("page loads", page.title() == "claudegame", page.title())
     check("browser driver installed", page.evaluate("typeof window.claudegame === 'object'"))
-    check("registry exposes every game", page.evaluate("window.claudegame.games").__len__() == 7,
+    check("registry exposes every game", page.evaluate("window.claudegame.games").__len__() == 8,
           str(page.evaluate("window.claudegame.games")))
 
     # ---------------- snake ----------------
@@ -174,10 +174,10 @@ with sync_playwright() as p:
     check("devbar: rendered in browser mode", page.is_visible("#devbar"))
     opts = page.evaluate("[...document.querySelectorAll('#devbar-game option')].map(o => o.value)")
     check("devbar: dropdown lists every game",
-          opts == ["", "snake", "reaction", "typing", "gradient", "metronome", "aim", "untangle"], str(opts))
+          opts == ["", "snake", "reaction", "typing", "gradient", "metronome", "aim", "untangle", "boulder"], str(opts))
     labels = page.evaluate("[...document.querySelectorAll('#devbar-game option')].map(o => o.textContent)")
     check("devbar: uses the games' own labels",
-          labels[1:] == ["Snake", "Reaction", "Typing", "Gradient", "Metronome", "Aim", "Untangle"], str(labels))
+          labels[1:] == ["Snake", "Reaction", "Typing", "Gradient", "Metronome", "Aim", "Untangle", "Boulder"], str(labels))
 
     page.select_option("#devbar-game", "snake")
     page.wait_for_selector("canvas.board", timeout=3000)
@@ -194,8 +194,20 @@ with sync_playwright() as p:
     page.wait_for_timeout(300)
     check("devbar: random option picks something",
           page.inner_text("#game-label") in
-          ("Snake", "Reaction", "Typing", "Gradient", "Metronome", "Aim", "Untangle"),
+          ("Snake", "Reaction", "Typing", "Gradient", "Metronome", "Aim", "Untangle", "Boulder"),
           page.inner_text("#game-label"))
+
+    page.evaluate("window.claudegame.hide()")
+    page.wait_for_timeout(200)
+    first = page.evaluate("""() => {
+      window.claudegame.show();
+      return document.getElementById('game-label').textContent;
+    }""")
+    second = page.evaluate("""() => {
+      window.claudegame.show();
+      return document.getElementById('game-label').textContent;
+    }""")
+    check("random show: no back-to-back repeat", first != second, f"{first} -> {second}")
     page.click("#devbar >> text=Hide")
     page.wait_for_timeout(200)
     check("devbar: Hide dismisses without a score card", not page.is_visible("#scorecard"))

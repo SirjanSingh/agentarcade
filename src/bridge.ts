@@ -7,6 +7,7 @@
  * `window.claudegame` drives the same events Rust would emit.
  */
 
+import { chooseExcluding } from "./picker";
 import { STATS_VERSION, type GameStats } from "./types";
 
 /** Keep in step with RECENT_LIMIT in src-tauri/src/stats.rs. */
@@ -146,10 +147,17 @@ export interface BrowserDriver {
  */
 export function installBrowserDriver(gameIds: readonly string[]): BrowserDriver | null {
   if (isTauri) return null;
+  let lastGameId: string | null = null;
   const driver: BrowserDriver = {
     games: gameIds,
-    show: (gameId?: string) =>
-      emitLocal("game:show", { gameId: gameId ?? gameIds[Math.floor(Math.random() * gameIds.length)] }),
+    show: (gameId?: string) => {
+      const picked =
+        gameId ??
+        chooseExcluding(gameIds, lastGameId, Math.floor(Math.random() * 0x1_0000_0000)) ??
+        gameIds[0];
+      lastGameId = picked;
+      emitLocal("game:show", { gameId: picked });
+    },
     stop: () => emitLocal("game:freeze", null),
     hide: () => emitLocal("game:hide", null),
   };

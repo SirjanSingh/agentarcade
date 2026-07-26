@@ -197,6 +197,11 @@ export function createGradient(): GameModule {
 
     freeze(): void {
       frozen = true;
+      const percent = sortedness();
+      if (percent > bestPercent) {
+        bestPercent = percent;
+        api.reportScore(bestPercent);
+      }
       render();
     },
 
