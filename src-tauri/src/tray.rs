@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use serde_json::Value;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use crate::logic::hooks;
 use crate::{apply, AppState};
@@ -31,6 +31,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
     let hooks_item = MenuItem::with_id(app, HOOKS_ITEM, hooks_label(app), true, None::<&str>)?;
     let autostart = MenuItem::with_id(app, "autostart", autostart_label(app), true, None::<&str>)?;
+    let show_stats = MenuItem::with_id(app, "show_stats", "Show stats", true, None::<&str>)?;
     let open_stats = MenuItem::with_id(app, "open_stats", "Open stats file", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit claudegame", true, None::<&str>)?;
 
@@ -38,6 +39,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         app,
         &[
             &play_now,
+            &show_stats,
             &PredefinedMenuItem::separator(app)?,
             &pause,
             &resume,
@@ -87,6 +89,13 @@ fn on_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
         }
         "autostart" => {
             toggle_autostart(app);
+            crate::logic::tracker::Action::Nothing
+        }
+        "show_stats" => {
+            // Opened by hand, so it is dismissed by hand (Esc) — the tracker
+            // is deliberately not told the window is showing a game.
+            let _ = app.emit("view:stats", ());
+            crate::window::show(app);
             crate::logic::tracker::Action::Nothing
         }
         "open_stats" => {

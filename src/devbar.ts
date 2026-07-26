@@ -9,7 +9,7 @@ import { REGISTRY } from "./registry";
  *
  * Never rendered in the packaged app — installBrowserDriver returns null there.
  */
-export function installDevBar(driver: BrowserDriver | null): void {
+export function installDevBar(driver: BrowserDriver | null, onStats: () => void): void {
   if (!driver) return;
 
   const bar = document.createElement("div");
@@ -38,6 +38,7 @@ export function installDevBar(driver: BrowserDriver | null): void {
   const hide = button("Hide", "Dismiss without a score card", () => {
     driver.hide();
   });
+  const stats = button("Stats", "Same as the tray's Show stats", onStats);
   const reset = button("Reset stats", "Clear local bests", () => {
     localStorage.removeItem("claudegame.stats");
     void refreshBests();
@@ -61,7 +62,7 @@ export function installDevBar(driver: BrowserDriver | null): void {
   // "let me look at this one", not "let me configure then press go".
   select.addEventListener("change", () => driver.show(select.value || undefined));
 
-  bar.append(tag, select, show, stop, hide, reset, bests);
+  bar.append(tag, select, show, stop, hide, stats, reset, bests);
   document.body.appendChild(bar);
   document.body.classList.add("has-devbar");
 

@@ -2,6 +2,7 @@ import { formatScore, isBetter, type GameModule } from "./game";
 import { GAME_IDS, REGISTRY } from "./registry";
 import { getStats, installBrowserDriver, listen, pendingGame, recordResult, requestHide } from "./bridge";
 import { installDevBar } from "./devbar";
+import { renderStats } from "./stats-view";
 import type { ShowPayload } from "./types";
 
 const SCORECARD_MS = 1500;
@@ -19,9 +20,20 @@ let currentScore: number | null = null;
 let currentBest: number | null = null;
 let startedAt = 0;
 let hideTimer: number | undefined;
+let showingStats = false;
+
+async function showStats(): Promise<void> {
+  teardown();
+  showingStats = true;
+  label.textContent = "Stats";
+  bestEl.textContent = "";
+  waitingEl.hidden = true;
+  renderStats(stage, await getStats());
+}
 
 async function startGame(gameId: string): Promise<void> {
   teardown();
+  showingStats = false;
 
   const factory = REGISTRY[gameId] ?? REGISTRY[GAME_IDS[0]];
   const game = factory();
@@ -49,7 +61,8 @@ async function startGame(gameId: string): Promise<void> {
 
 /** Claude finished: stop the run, show the result, then get out of the way. */
 async function finishAndHide(): Promise<void> {
-  if (!current) {
+  // Nothing to score if the user was reading their stats when Claude finished.
+  if (!current || showingStats) {
     await requestHide();
     return;
   }
@@ -114,9 +127,15 @@ void listen("game:freeze", () => {
 // from a clean stage instead of resuming a dead run.
 void listen("game:hide", () => {
   teardown();
+  showingStats = false;
 });
 
-installDevBar(installBrowserDriver(GAME_IDS));
+// Tray "Show stats".
+void listen("view:stats", () => {
+  void showStats();
+});
+
+installDevBar(installBrowserDriver(GAME_IDS), () => void showStats());
 
 // If a hook fired while this webview was still loading, catch up on it.
 void pendingGame().then((gameId) => {

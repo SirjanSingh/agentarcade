@@ -7,7 +7,10 @@
  * `window.claudegame` drives the same events Rust would emit.
  */
 
-import type { GameStats } from "./types";
+import { STATS_VERSION, type GameStats } from "./types";
+
+/** Keep in step with RECENT_LIMIT in src-tauri/src/stats.rs. */
+const RECENT_LIMIT = 100;
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -40,14 +43,34 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 
 const LOCAL_STATS_KEY = "claudegame.stats";
 
+function emptyStats(): GameStats {
+  return {
+    version: STATS_VERSION,
+    deviceId: crypto.randomUUID(),
+    games: {},
+    recent: [],
+    totals: { sessions: 0, secondsPlayed: 0 },
+  };
+}
+
 function readLocalStats(): GameStats {
   try {
     const raw = localStorage.getItem(LOCAL_STATS_KEY);
-    if (raw) return JSON.parse(raw) as GameStats;
+    if (raw) {
+      // Fill in anything a v1 file predates rather than discarding its bests.
+      const parsed = JSON.parse(raw) as Partial<GameStats>;
+      return {
+        version: STATS_VERSION,
+        deviceId: parsed.deviceId ?? crypto.randomUUID(),
+        games: parsed.games ?? {},
+        recent: parsed.recent ?? [],
+        totals: parsed.totals ?? { sessions: 0, secondsPlayed: 0 },
+      };
+    }
   } catch {
     // Corrupt local stats are not worth a crash — start fresh.
   }
-  return { version: 1, games: {}, totals: { sessions: 0, secondsPlayed: 0 } };
+  return emptyStats();
 }
 
 export async function getStats(): Promise<GameStats> {
@@ -76,6 +99,14 @@ export async function recordResult(
   stats.games[gameId] = entry;
   stats.totals.sessions += 1;
   stats.totals.secondsPlayed += Math.round(durationMs / 1000);
+  stats.recent.unshift({
+    id: crypto.randomUUID(),
+    gameId,
+    score,
+    durationMs: Math.round(durationMs),
+    at: entry.lastPlayed,
+  });
+  stats.recent = stats.recent.slice(0, RECENT_LIMIT);
   localStorage.setItem(LOCAL_STATS_KEY, JSON.stringify(stats));
   window.dispatchEvent(new CustomEvent("claudegame:recorded"));
 }
