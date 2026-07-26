@@ -5,6 +5,11 @@ const COLS = 25;
 const ROWS = 21;
 const START_TICK_MS = 130;
 const MIN_TICK_MS = 70;
+/**
+ * Below this, apples-per-minute is dominated by the walk to the first apple
+ * and reports nonsense. Same idea as the typing test's one-second floor.
+ */
+const MIN_SCORING_MS = 6000;
 
 interface Point {
   x: number;
@@ -50,6 +55,9 @@ export function createSnake(): GameModule {
   let score = 0;
   let tickMs = START_TICK_MS;
   let lastTick = 0;
+  /** Apples across every life this run, and when the run started. */
+  let totalApples = 0;
+  let runStart = 0;
 
   function reset(): void {
     const midY = Math.floor(ROWS / 2);
@@ -64,7 +72,21 @@ export function createSnake(): GameModule {
     tickMs = START_TICK_MS;
     dead = false;
     placeFood();
-    api.reportScore(0);
+  }
+
+  /**
+   * Apples per minute, not raw apples. Raw apples only ever measured how long
+   * Claude thought — a 45-second wait beat a 6-second one every time, so the
+   * personal best was really a record of the longest wait.
+   */
+  function applesPerMinute(): number {
+    const elapsed = performance.now() - runStart;
+    if (elapsed < MIN_SCORING_MS) return 0;
+    return totalApples / (elapsed / 60000);
+  }
+
+  function reportIfMeaningful(): void {
+    if (performance.now() - runStart >= MIN_SCORING_MS) api.reportScore(applesPerMinute());
   }
 
   function placeFood(): void {
@@ -93,7 +115,8 @@ export function createSnake(): GameModule {
     snake.unshift(head);
     if (head.x === food.x && head.y === food.y) {
       score += 1;
-      api.reportScore(score);
+      totalApples += 1;
+      reportIfMeaningful();
       tickMs = Math.max(MIN_TICK_MS, tickMs - 3);
       placeFood();
     } else {
@@ -140,10 +163,10 @@ export function createSnake(): GameModule {
       ctx.fillStyle = "#f2f3f5";
       ctx.font = "600 20px ui-monospace, SFMono-Regular, Menlo, monospace";
       ctx.textAlign = "center";
-      ctx.fillText(`${score} point${score === 1 ? "" : "s"}`, w / 2, h / 2 - 4);
+      ctx.fillText(`${Math.round(applesPerMinute())} apples/min`, w / 2, h / 2 - 4);
       ctx.fillStyle = "#8b909b";
       ctx.font = "13px ui-monospace, SFMono-Regular, Menlo, monospace";
-      ctx.fillText("space to play again", w / 2, h / 2 + 22);
+      ctx.fillText(`${totalApples} this run · space to play on`, w / 2, h / 2 + 22);
     }
   }
 
@@ -174,11 +197,12 @@ export function createSnake(): GameModule {
   return {
     id: "snake",
     label: "Snake",
-    unit: "pts",
+    unit: "apples/min",
     lowerIsBetter: false,
 
     mount(root: HTMLElement, gameApi: GameApi): void {
       api = gameApi;
+      runStart = performance.now();
       canvas = document.createElement("canvas");
       canvas.width = COLS * CELL;
       canvas.height = ROWS * CELL;
@@ -194,6 +218,7 @@ export function createSnake(): GameModule {
 
     freeze(): void {
       frozen = true;
+      reportIfMeaningful();
       draw();
     },
 
