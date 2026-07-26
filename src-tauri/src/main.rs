@@ -20,7 +20,7 @@ use stats::Stats;
 
 /// Keep this in sync with src/registry.ts — Rust picks the id, the frontend
 /// mounts the matching module.
-const GAMES: [&str; 7] = [
+const GAMES: [&str; 8] = [
     "snake",
     "reaction",
     "typing",
@@ -28,6 +28,7 @@ const GAMES: [&str; 7] = [
     "metronome",
     "aim",
     "untangle",
+    "boulder",
 ];
 
 pub struct AppState {

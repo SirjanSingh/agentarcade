@@ -6,6 +6,7 @@ import { createGradient } from "./games/gradient";
 import { createMetronome } from "./games/metronome";
 import { createAim } from "./games/aim";
 import { createUntangle } from "./games/untangle";
+import { createBoulder } from "./games/boulder";
 
 /**
  * The one place games are registered. Rust picks an id from this same list
@@ -19,6 +20,7 @@ export const REGISTRY: Record<string, GameFactory> = {
   metronome: createMetronome,
   aim: createAim,
   untangle: createUntangle,
+  boulder: createBoulder,
 };
 
 export const GAME_IDS = Object.keys(REGISTRY);
