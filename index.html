@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>claudegame</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="titlebar" data-tauri-drag-region>
+        <span class="dot" aria-hidden="true"></span>
+        <span id="game-label">claudegame</span>
+        <span id="hint">Esc to dismiss</span>
+      </header>
+      <main id="stage"></main>
+      <footer id="statusbar">
+        <span id="best"></span>
+        <span id="waiting">Claude is thinking…</span>
+      </footer>
+      <div id="scorecard" hidden>
+        <div class="card">
+          <p class="headline">Claude's done</p>
+          <p class="score"><span id="final-score">—</span></p>
+          <p class="sub" id="final-sub"></p>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

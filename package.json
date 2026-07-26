@@ -1,0 +1,22 @@
+{
+  "name": "claudegame",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mini-games that pop up while Claude Code is thinking, and vanish when it's done.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0"
+  }
+}
