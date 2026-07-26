@@ -1,0 +1,34 @@
+[package]
+name = "claudegame"
+version = "0.1.0"
+description = "Mini-games while Claude Code thinks"
+authors = ["Sirjan Singh"]
+edition = "2021"
+# is_none_or (used in logic/hooks.rs) stabilised in 1.82.
+rust-version = "1.82"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+# preserve_order keeps the user's settings.json key order intact through an
+# install/uninstall round trip — see logic/hooks.rs.
+serde_json = { version = "1", features = ["preserve_order"] }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

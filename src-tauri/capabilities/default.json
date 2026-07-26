@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Everything the game window needs: invoke commands and listen for show/freeze/hide events.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
