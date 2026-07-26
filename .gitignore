@@ -10,6 +10,9 @@ src-tauri/gen/
 stats.json
 stats.json.bak
 
+# screenshots produced by the verification suites
+tests/screenshots/
+
 # editor / OS
 .DS_Store
 Thumbs.db
