@@ -102,6 +102,64 @@ body {
   50% { opacity: 1; }
 }
 
+/* ---------- dev bar (browser mode only) ---------- */
+
+body.has-devbar #app {
+  height: calc(100vh - 46px);
+}
+
+#devbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--bg) 60%, #000);
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  overflow-x: auto;
+}
+
+.devbar-tag {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+#devbar select,
+#devbar button {
+  flex: none;
+  font: inherit;
+  font-family: var(--mono);
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+
+#devbar button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.devbar-bests {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* ---------- score card ---------- */
 
 #scorecard {
@@ -115,6 +173,11 @@ body {
 
 #scorecard[hidden] {
   display: none;
+}
+
+/* Keep the dev bar clickable while the score card is up. */
+body.has-devbar #scorecard {
+  bottom: 46px;
 }
 
 #scorecard .card {

@@ -1,6 +1,7 @@
 import { formatScore, isBetter, type GameModule } from "./game";
 import { GAME_IDS, REGISTRY } from "./registry";
 import { getStats, installBrowserDriver, listen, pendingGame, recordResult, requestHide } from "./bridge";
+import { installDevBar } from "./devbar";
 import type { ShowPayload } from "./types";
 
 const SCORECARD_MS = 1500;
@@ -115,7 +116,7 @@ void listen("game:hide", () => {
   teardown();
 });
 
-installBrowserDriver(GAME_IDS);
+installDevBar(installBrowserDriver(GAME_IDS));
 
 // If a hook fired while this webview was still loading, catch up on it.
 void pendingGame().then((gameId) => {

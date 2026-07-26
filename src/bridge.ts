@@ -77,6 +77,7 @@ export async function recordResult(
   stats.totals.sessions += 1;
   stats.totals.secondsPlayed += Math.round(durationMs / 1000);
   localStorage.setItem(LOCAL_STATS_KEY, JSON.stringify(stats));
+  window.dispatchEvent(new CustomEvent("claudegame:recorded"));
 }
 
 /**
@@ -98,22 +99,31 @@ export async function requestHide(): Promise<void> {
   emitLocal("game:hide", null);
 }
 
+/** Stands in for Rust when the page runs outside Tauri. */
+export interface BrowserDriver {
+  readonly games: readonly string[];
+  /** What UserPromptSubmit does. */
+  show(gameId?: string): void;
+  /** What Stop does. */
+  stop(): void;
+  hide(): void;
+}
+
 /**
  * Browser-mode driver. Lets a human (or a Playwright script) exercise the exact
  * event sequence Rust produces: claudegame.show("snake") then claudegame.stop().
  */
-export function installBrowserDriver(gameIds: readonly string[]): void {
-  if (isTauri) return;
-  const driver = {
+export function installBrowserDriver(gameIds: readonly string[]): BrowserDriver | null {
+  if (isTauri) return null;
+  const driver: BrowserDriver = {
     games: gameIds,
     show: (gameId?: string) =>
       emitLocal("game:show", { gameId: gameId ?? gameIds[Math.floor(Math.random() * gameIds.length)] }),
     stop: () => emitLocal("game:freeze", null),
     hide: () => emitLocal("game:hide", null),
   };
-  (window as unknown as { claudegame: typeof driver }).claudegame = driver;
-  // eslint-disable-next-line no-console
-  console.info("[claudegame] browser mode — try claudegame.show('snake') then claudegame.stop()");
+  (window as unknown as { claudegame: BrowserDriver }).claudegame = driver;
+  return driver;
 }
 
 export { isTauri };
