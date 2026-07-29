@@ -1,6 +1,6 @@
 {
   "name": "claudegame",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Mini-games that pop up while Claude Code is thinking, and vanish when it's done.",
   "type": "module",
