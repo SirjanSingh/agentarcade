@@ -8,6 +8,7 @@
  */
 
 import { chooseExcluding } from "./picker";
+import { isProGame, pickableGameIds } from "./tiers";
 import { STATS_VERSION, type GameStats } from "./types";
 
 /** Keep in step with RECENT_LIMIT in src-tauri/src/stats.rs. */
@@ -43,6 +44,16 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 }
 
 const LOCAL_STATS_KEY = "claudegame.stats";
+const LOCAL_PRO_KEY = "claudegame.pro";
+
+function isProLocal(): boolean {
+  return localStorage.getItem(LOCAL_PRO_KEY) === "1";
+}
+
+export async function isPro(): Promise<boolean> {
+  if (isTauri) return invoke<boolean>("is_pro");
+  return isProLocal();
+}
 
 function emptyStats(): GameStats {
   return {
@@ -145,16 +156,22 @@ export interface BrowserDriver {
  * Browser-mode driver. Lets a human (or a Playwright script) exercise the exact
  * event sequence Rust produces: claudegame.show("snake") then claudegame.stop().
  */
-export function installBrowserDriver(gameIds: readonly string[]): BrowserDriver | null {
+export function installBrowserDriver(allGameIds: readonly string[]): BrowserDriver | null {
   if (isTauri) return null;
   let lastGameId: string | null = null;
   const driver: BrowserDriver = {
-    games: gameIds,
+    games: allGameIds,
     show: (gameId?: string) => {
-      const picked =
-        gameId ??
-        chooseExcluding(gameIds, lastGameId, Math.floor(Math.random() * 0x1_0000_0000)) ??
-        gameIds[0];
+      const pro = isProLocal();
+      const pickable = pickableGameIds(pro);
+      let picked = gameId;
+      if (picked && isProGame(picked) && !pro) {
+        picked = undefined;
+      }
+      picked =
+        picked ??
+        chooseExcluding(pickable, lastGameId, Math.floor(Math.random() * 0x1_0000_0000)) ??
+        pickable[0];
       lastGameId = picked;
       emitLocal("game:show", { gameId: picked });
     },

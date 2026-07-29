@@ -37,6 +37,8 @@ export interface GameStats {
     sessions: number;
     secondsPlayed: number;
   };
+  /** Unlocks Pro games once a license is activated. */
+  proUnlocked?: boolean;
 }
 
 /** Payload of the `game:show` event emitted by Rust. */

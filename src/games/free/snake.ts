@@ -1,4 +1,4 @@
-import type { GameApi, GameModule } from "../game";
+import type { GameApi, GameModule } from "../../game";
 
 const CELL = 20;
 const COLS = 25;

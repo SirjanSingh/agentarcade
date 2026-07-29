@@ -34,7 +34,9 @@ pub enum Pause {
 }
 
 pub struct Tracker {
-    games: Vec<String>,
+    free_games: Vec<String>,
+    pro_games: Vec<String>,
+    pro_unlocked: bool,
     /// session_id -> time of that session's last event.
     active: HashMap<String, Instant>,
     visible: bool,
@@ -45,9 +47,16 @@ pub struct Tracker {
 }
 
 impl Tracker {
-    pub fn new(games: Vec<String>, seed: u64) -> Self {
+    pub fn new(
+        free_games: Vec<String>,
+        pro_games: Vec<String>,
+        pro_unlocked: bool,
+        seed: u64,
+    ) -> Self {
         Self {
-            games,
+            free_games,
+            pro_games,
+            pro_unlocked,
             active: HashMap::new(),
             visible: false,
             last_show: None,
@@ -55,6 +64,18 @@ impl Tracker {
             pause: None,
             rng: Rng::new(seed),
         }
+    }
+
+    pub fn set_pro_unlocked(&mut self, unlocked: bool) {
+        self.pro_unlocked = unlocked;
+    }
+
+    fn pickable_games(&self) -> Vec<String> {
+        let mut games = self.free_games.clone();
+        if self.pro_unlocked {
+            games.extend(self.pro_games.clone());
+        }
+        games
     }
 
     pub fn is_visible(&self) -> bool {
@@ -162,7 +183,8 @@ impl Tracker {
 
     fn start_game(&mut self, now: Instant) -> Action {
         let roll = self.rng.next_u64();
-        match choose_excluding(&self.games, self.last_game.as_deref(), roll) {
+        let pool = self.pickable_games();
+        match choose_excluding(&pool, self.last_game.as_deref(), roll) {
             Some(game_id) => {
                 let game_id = game_id.to_string();
                 self.visible = true;
@@ -186,7 +208,9 @@ mod tests {
 
     fn tracker() -> Tracker {
         Tracker::new(
-            vec!["snake".into(), "reaction".into(), "typing".into()],
+            vec!["snake".into(), "reaction".into(), "typing".into(), "aim".into()],
+            vec!["gradient".into(), "boulder".into()],
+            false,
             1234,
         )
     }
@@ -332,6 +356,25 @@ mod tests {
         assert!(show(&t.force_show(t0)));
         t.on_hidden();
         assert!(show(&t.force_show(t0 + Duration::from_millis(10))));
+    }
+
+    #[test]
+    fn free_tier_never_picks_pro_games() {
+        let mut t = tracker();
+        let t0 = Instant::now();
+        for i in 0..80 {
+            let now = t0 + Duration::from_secs(i * 10);
+            let action = t.on_show_event("a", now);
+            let Action::Show { game_id } = action else {
+                panic!("expected a game at iteration {i}, got {action:?}");
+            };
+            assert!(
+                !super::super::tiers::is_pro_game(&game_id),
+                "free tier picked pro game {game_id}"
+            );
+            t.on_stop_event("a", now + Duration::from_secs(1));
+            t.on_hidden();
+        }
     }
 
     #[test]

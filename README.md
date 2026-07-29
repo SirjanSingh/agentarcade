@@ -1,7 +1,11 @@
-# claudegame
+# claudegame (Free)
 
-A tray app that pops up a quick mini-game whenever Claude Code starts thinking —
-and dismisses itself the moment Claude is done.
+A tray app that pops up a quick mini-game whenever your AI assistant starts
+thinking — and dismisses itself the moment it's done.
+
+**This repo is the free edition** ([github.com/SirjanSingh/claudegame](https://github.com/SirjanSingh/claudegame)).
+Pro games and future Pro features will ship from a separate private repo; Pro
+modules in `src/games/pro/` are runtime-gated here.
 
 Inspired by [microtaskrr](https://github.com/whoisyurii/microtaskrr), with two
 differences: it is cross-platform (Windows first), and you never have to press
@@ -12,18 +16,19 @@ Esc to get back to work. The `Stop` hook closes the game for you.
 </p>
 <p align="center"><em>Claude finishes, you get your score, the window leaves. No keypress.</em></p>
 
-Eight games, a random one each time, never the same twice in a row:
+Eight games — **four free**, **four Pro**. The random picker draws from the free
+set unless Pro is unlocked; never the same game twice in a row.
 
-| Game | You | Scored on |
-|---|---|---|
-| **Snake** | steer with arrows/WASD | apples per minute |
-| **Reaction** | wait for green, click | best reaction, ms |
-| **Typing** | type the words | words per minute |
-| **Gradient** | swap tiles to restore a colour field | % sorted |
-| **Metronome** | tap space on the beat | mean timing error, ms |
-| **Aim** | click the targets | targets per minute |
-| **Untangle** | drag nodes until no lines cross | % of crossings removed |
-| **Boulder** | jump over code blocks, outrun the sunburst | metres per minute |
+| Game | Tier | You | Scored on |
+|---|---|---|---|
+| **Snake** | Free | steer with arrows/WASD | apples per minute |
+| **Typing** | Free | type the words | words per minute |
+| **Aim** | Free | click the targets | targets per minute |
+| **Reaction** | Free | wait for green, click | best reaction, ms |
+| **Gradient** | Pro | swap tiles to restore a colour field | % sorted |
+| **Metronome** | Pro | tap space on the beat | mean timing error, ms |
+| **Untangle** | Pro | drag nodes until no lines cross | % of crossings removed |
+| **Boulder** | Pro | jump over code blocks, outrun the sunburst | metres per minute |
 
 <table>
   <tr>
@@ -51,6 +56,22 @@ moment and scored on the spot:
 - **The score does not drift with run length.** Rates, percentages and
   best-single-event times, never running totals. Otherwise a personal best is
   just a record of the longest wait you have ever had.
+
+---
+
+## Repo layout
+
+```
+src/games/free/     ← Free tier (Snake, Typing, Aim, Reaction) — always playable
+src/games/pro/      ← Pro tier (Gradient, Metronome, Untangle, Boulder) — gated
+src/tiers.ts        ← Tier lists (keep in sync with src-tauri/src/logic/tiers.rs)
+scripts/cursor-hook.js   ← Cursor IDE hook bridge
+```
+
+| Edition | Repo | Games |
+|---------|------|-------|
+| **Free** | This repo (public) | 4 games in `src/games/free/` |
+| **Pro** | Private repo (future) | Pro folder + sync, multi-tool, extras |
 
 ---
 
@@ -99,6 +120,31 @@ Then, from the tray menu, choose **Enable Claude Code hooks**. That merges three
 entries into `~/.claude/settings.json`, keeping a one-time copy of your original
 at `~/.claude/settings.json.claudegame-backup`. **Disable Claude Code hooks**
 removes exactly what it added and leaves everything else untouched.
+
+### Cursor hooks
+
+Claude Code hooks do **not** fire from Cursor's agent chat. Install the bundled
+bridge script:
+
+```powershell
+# Copy hook script
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.cursor\hooks"
+Copy-Item scripts\cursor-hook.js "$env:USERPROFILE\.cursor\hooks\claudegame.js"
+
+# Create ~/.cursor/hooks.json (adjust path if your home dir differs)
+@'
+{
+  "version": 1,
+  "hooks": {
+    "beforeSubmitPrompt": [{ "command": "node \"C:\\Users\\YOU\\.cursor\\hooks\\claudegame.js\" UserPromptSubmit" }],
+    "preCompact":       [{ "command": "node \"C:\\Users\\YOU\\.cursor\\hooks\\claudegame.js\" PreCompact" }],
+    "stop":             [{ "command": "node \"C:\\Users\\YOU\\.cursor\\hooks\\claudegame.js\" Stop" }]
+  }
+}
+'@ | Set-Content "$env:USERPROFILE\.cursor\hooks.json"
+```
+
+Restart Cursor after installing. The tray app must be running.
 
 To wire it up by hand instead:
 
@@ -154,10 +200,14 @@ The server binds `127.0.0.1` only. It is never reachable from the network.
 
 ## Adding a game
 
-1. Write `src/games/<name>.ts` implementing `GameModule` from `src/game.ts`
-   (`mount` / `freeze` / `destroy`, and call `api.reportScore`).
-2. Add it to `REGISTRY` in `src/registry.ts`.
-3. Add the same id to `GAMES` in `src-tauri/src/main.rs`.
+**Free game:** write `src/games/free/<name>.ts`, register in `src/games/free/index.ts`,
+add the id to `FREE_GAMES` in `src-tauri/src/logic/tiers.rs`.
+
+**Pro game:** write `src/games/pro/<name>.ts`, register in `src/games/pro/index.ts`,
+add the id to `PRO_GAMES` in `src-tauri/src/logic/tiers.rs`.
+
+Each module implements `GameModule` from `src/game.ts` (`mount` / `freeze` /
+`destroy`, and call `api.reportScore`).
 
 ## Development
 
@@ -194,6 +244,31 @@ $u = "http://127.0.0.1:47913/event"
 irm $u -Method Post -ContentType application/json -Body '{"session_id":"a","hook_event_name":"UserPromptSubmit"}'
 irm $u -Method Post -ContentType application/json -Body '{"session_id":"a","hook_event_name":"Stop"}'
 ```
+
+## Pricing
+
+**Free tier** — Snake, Typing, Aim, and Reaction. Claude Code hooks, local stats,
+tray controls. No account required.
+
+**Pro** (coming soon) — Gradient, Metronome, Untangle, and Boulder, plus cloud
+stats sync, multi-tool hooks (Codex, Cursor, Gemini CLI), themes, and finer tray
+controls (show delay, schedules).
+
+Pro is not sold yet. To test Pro games during development, set
+`CLAUDEGAME_PRO=1` before launching the app, or use the **Pro (dev)** toggle in
+browser mode (`npm run dev`).
+
+## Security & privacy
+
+- The hook server binds **`127.0.0.1` only** — not reachable from the network.
+- **Enable Claude Code hooks** merges three entries into `~/.claude/settings.json`
+  and keeps a one-time backup at `~/.claude/settings.json.claudegame-backup`.
+  **Disable** removes exactly what it added.
+- Stats are **local JSON** — no accounts, no telemetry, no backend in v0.1.0.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ## Platform status
 

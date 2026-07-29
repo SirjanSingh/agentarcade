@@ -1,4 +1,4 @@
-import type { GameApi, GameModule } from "../game";
+import type { GameApi, GameModule } from "../../game";
 
 /** Fixed tempo on purpose: a drifting BPM would make scores incomparable. */
 const BPM = 100;

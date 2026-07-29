@@ -3,4 +3,5 @@
 
 pub mod hooks;
 pub mod picker;
+pub mod tiers;
 pub mod tracker;

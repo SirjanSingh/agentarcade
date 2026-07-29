@@ -1,6 +1,8 @@
 import { formatScore, isBetter, type GameModule } from "./game";
+import { chooseExcluding } from "./picker";
 import { GAME_IDS, REGISTRY } from "./registry";
-import { getStats, installBrowserDriver, listen, pendingGame, recordResult, requestHide } from "./bridge";
+import { FREE_GAME_IDS, isProGame } from "./tiers";
+import { getStats, installBrowserDriver, isPro, listen, pendingGame, recordResult, requestHide } from "./bridge";
 import { installDevBar } from "./devbar";
 import { renderStats } from "./stats-view";
 import type { ShowPayload } from "./types";
@@ -37,6 +39,13 @@ async function showStats(): Promise<void> {
 }
 
 async function startGame(gameId: string): Promise<void> {
+  const pro = await isPro();
+  if (isProGame(gameId) && !pro) {
+    gameId =
+      chooseExcluding(FREE_GAME_IDS, null, Math.floor(Math.random() * 0x1_0000_0000)) ??
+      FREE_GAME_IDS[0];
+  }
+
   const seq = ++startSeq;
   if (starting) await starting;
   teardown();

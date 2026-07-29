@@ -55,6 +55,9 @@ pub struct Stats {
     #[serde(default)]
     pub recent: Vec<RunRecord>,
     pub totals: Totals,
+    /// Unlocks Pro games and future Pro features once a license is activated.
+    #[serde(default)]
+    pub pro_unlocked: bool,
 }
 
 impl Default for Stats {
@@ -65,6 +68,7 @@ impl Default for Stats {
             games: BTreeMap::new(),
             recent: Vec::new(),
             totals: Totals::default(),
+            pro_unlocked: false,
         }
     }
 }

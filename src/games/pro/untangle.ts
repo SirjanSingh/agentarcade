@@ -1,4 +1,4 @@
-import type { GameApi, GameModule } from "../game";
+import type { GameApi, GameModule } from "../../game";
 
 const START_NODES = 7;
 const MAX_NODES = 12;

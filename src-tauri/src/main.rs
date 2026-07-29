@@ -14,22 +14,17 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
+use logic::tiers;
 use logic::tracker::{Action, Tracker};
 use server::{HookMessage, DEFAULT_PORT};
 use stats::Stats;
 
-/// Keep this in sync with src/registry.ts — Rust picks the id, the frontend
-/// mounts the matching module.
-const GAMES: [&str; 8] = [
-    "snake",
-    "reaction",
-    "typing",
-    "gradient",
-    "metronome",
-    "aim",
-    "untangle",
-    "boulder",
-];
+fn pro_unlocked(stats: &Stats) -> bool {
+    std::env::var("CLAUDEGAME_PRO")
+        .ok()
+        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        || stats.pro_unlocked
+}
 
 pub struct AppState {
     pub tracker: Mutex<Tracker>,
@@ -88,6 +83,11 @@ fn hide_now<R: Runtime>(app: &AppHandle<R>) {
     if let Some(state) = app.try_state::<AppState>() {
         state.tracker.lock().unwrap().on_hidden();
     }
+}
+
+#[tauri::command]
+fn is_pro(state: State<AppState>) -> bool {
+    pro_unlocked(&state.stats.lock().unwrap())
 }
 
 #[tauri::command]
@@ -153,6 +153,7 @@ fn main() {
             eprintln!("[claudegame] already running ({})", app.package_info().name);
         }))
         .invoke_handler(tauri::generate_handler![
+            is_pro,
             get_stats,
             record_result,
             hide_window,
@@ -178,12 +179,17 @@ fn main() {
                 .join(".claude")
                 .join("settings.json");
 
+            let stats = Stats::load(&stats_path);
+            let unlocked = pro_unlocked(&stats);
+
             app.manage(AppState {
                 tracker: Mutex::new(Tracker::new(
-                    GAMES.iter().map(|s| s.to_string()).collect(),
+                    tiers::FREE_GAMES.iter().map(|s| s.to_string()).collect(),
+                    tiers::PRO_GAMES.iter().map(|s| s.to_string()).collect(),
+                    unlocked,
                     seed(),
                 )),
-                stats: Mutex::new(Stats::load(&stats_path)),
+                stats: Mutex::new(stats),
                 stats_path,
                 settings_path,
                 hook_url: hook_url.clone(),

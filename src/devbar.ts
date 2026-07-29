@@ -1,6 +1,7 @@
 import type { BrowserDriver } from "./bridge";
 import { getStats } from "./bridge";
 import { REGISTRY } from "./registry";
+import { isProGame } from "./tiers";
 
 /**
  * Dev-only control bar, shown when the page runs in a plain browser instead of
@@ -25,8 +26,9 @@ export function installDevBar(driver: BrowserDriver | null, onStats: () => void)
   const random = new Option("random (no repeats)", "");
   select.add(random);
   for (const id of driver.games) {
-    // Use the module's own label so the dropdown cannot drift from the games.
-    select.add(new Option(REGISTRY[id]().label, id));
+    const game = REGISTRY[id]();
+    const suffix = isProGame(id) ? " · Pro" : "";
+    select.add(new Option(`${game.label}${suffix}`, id));
   }
 
   const show = button("Show", "Same as UserPromptSubmit", () => {
@@ -62,7 +64,16 @@ export function installDevBar(driver: BrowserDriver | null, onStats: () => void)
   // "let me look at this one", not "let me configure then press go".
   select.addEventListener("change", () => driver.show(select.value || undefined));
 
-  bar.append(tag, select, show, stop, hide, stats, reset, bests);
+  const proToggle = button("Pro (dev)", "Toggle Pro tier in browser mode (localStorage)", () => {
+    const on = localStorage.getItem("claudegame.pro") === "1";
+    localStorage.setItem("claudegame.pro", on ? "0" : "1");
+    proToggle.textContent = on ? "Pro (dev)" : "Pro ✓";
+  });
+  if (localStorage.getItem("claudegame.pro") === "1") {
+    proToggle.textContent = "Pro ✓";
+  }
+
+  bar.append(tag, select, show, stop, hide, stats, reset, proToggle, bests);
   document.body.appendChild(bar);
   document.body.classList.add("has-devbar");
 
