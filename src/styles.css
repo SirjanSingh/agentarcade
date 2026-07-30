@@ -69,6 +69,61 @@ body {
   font-size: 11px;
 }
 
+/* ---------- game tabs ---------- */
+
+#game-tabs-mount:empty {
+  display: none;
+}
+
+#game-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+#game-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+#game-tabs[hidden] {
+  display: none;
+}
+
+#game-tabs button {
+  flex: none;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 90ms, border-color 90ms, background 90ms;
+}
+
+#game-tabs button:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+}
+
+#game-tabs button[aria-selected="true"] {
+  color: var(--fg);
+  background: var(--panel);
+  border-color: var(--line);
+}
+
+#game-tabs button.pro::after {
+  content: " · pro";
+  opacity: 0.55;
+  font-size: 10px;
+}
+
 #stage {
   flex: 1;
   display: grid;
@@ -501,11 +556,18 @@ body.has-devbar #scorecard {
   flex-wrap: wrap;
   gap: 6px 10px;
   align-content: flex-start;
-  height: 132px;
-  overflow: hidden;
+  max-height: 132px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
   font-size: 18px;
   line-height: 1.5;
   color: var(--muted);
+  scrollbar-width: none;
+}
+
+.typing-stream::-webkit-scrollbar {
+  display: none;
 }
 
 .typing[data-state="done"] .typing-stream {

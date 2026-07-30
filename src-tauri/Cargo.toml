@@ -1,6 +1,6 @@
 [package]
 name = "claudegame"
-version = "1.0.0"
+version = "1.0.1"
 description = "Mini-games while Claude Code thinks"
 authors = ["Sirjan Singh"]
 edition = "2021"

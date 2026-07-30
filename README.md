@@ -3,7 +3,7 @@
 A tray app that pops up a quick mini-game whenever your AI assistant starts
 thinking — and dismisses itself the moment it's done.
 
-**This repo is the free edition** — [Download v1.0.0 for Windows](https://github.com/SirjanSingh/claudegame/releases/latest)
+**This repo is the free edition** — [Download v1.0.1 for Windows](https://github.com/SirjanSingh/claudegame/releases/latest)
 
 Inspired by [microtaskrr](https://github.com/whoisyurii/microtaskrr), with two
 differences: cross-platform (Windows first), and you never press Esc to get back
@@ -23,7 +23,7 @@ to work. The `Stop` hook closes the game and returns focus to your editor.
 ### 1. Download and install
 
 1. Open **[Releases](https://github.com/SirjanSingh/claudegame/releases/latest)**
-2. Download **`claudegame_1.0.0_x64-setup.exe`**
+2. Download **`claudegame_1.0.1_x64-setup.exe`**
 3. Run the installer — claudegame appears in the **system tray** (hidden icon area)
 
 ### 2. Start at login (recommended)
@@ -190,7 +190,7 @@ npm run tauri build    # installer → src-tauri/target/release/bundle/
 ```
 
 On Windows with `CARGO_TARGET_DIR=D:\rust\target`, the NSIS installer lands at
-`D:\rust\target\release\bundle\nsis\claudegame_1.0.0_x64-setup.exe`.
+`D:\rust\target\release\bundle\nsis\claudegame_1.0.1_x64-setup.exe`.
 
 ---
 

@@ -36,6 +36,8 @@ export function createTyping(): GameModule {
   let startedAt: number | null = null;
   let frozen = false;
   let ticker: number | undefined;
+  /** Only scroll when advancing words — not on every keystroke. */
+  let scrollAtWordIndex = -1;
 
   function elapsedSeconds(): number {
     if (startedAt === null) return 0;
@@ -64,9 +66,10 @@ export function createTyping(): GameModule {
 
   function render(): void {
     stream.replaceChildren();
-    // A window of words keeps the DOM small and the current word centred-ish.
-    const from = Math.max(0, wordIndex - 4);
-    for (let i = from; i < Math.min(words.length, from + 28); i++) {
+    // Keep completed words visible from the start — no sliding window that
+    // makes the line jump backward as you progress (monkeytype-style).
+    const end = Math.min(words.length, wordIndex + 40);
+    for (let i = 0; i < end; i++) {
       const el = document.createElement("span");
       el.className = "word";
       if (i < wordIndex) {
@@ -75,19 +78,24 @@ export function createTyping(): GameModule {
       } else if (i === wordIndex) {
         el.classList.add("active");
         const target = words[i];
-        for (let c = 0; c < Math.max(target.length, typed.length); c++) {
+        // Render the full target up front so the word width stays fixed while typing.
+        for (let c = 0; c < target.length; c++) {
           const ch = document.createElement("span");
           const expected = target[c];
           const actual = typed[c];
           if (actual === undefined) {
             ch.textContent = expected;
-          } else if (expected === undefined) {
-            ch.textContent = actual;
-            ch.className = "extra";
           } else {
             ch.textContent = expected;
             ch.className = actual === expected ? "hit" : "miss";
           }
+          el.appendChild(ch);
+        }
+        // Extra mistyped characters beyond the word length.
+        for (let c = target.length; c < typed.length; c++) {
+          const ch = document.createElement("span");
+          ch.textContent = typed[c];
+          ch.className = "extra";
           el.appendChild(ch);
         }
       } else {
@@ -101,6 +109,14 @@ export function createTyping(): GameModule {
       startedAt === null
         ? "start typing — 30 seconds"
         : `${left.toFixed(0)}s · ${Math.round(wpm())} wpm · ${accuracy().toFixed(0)}% acc`;
+
+    if (wordIndex !== scrollAtWordIndex) {
+      scrollAtWordIndex = wordIndex;
+      const active = stream.querySelector(".word.active");
+      if (active && wordIndex > 0) {
+        active.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
+    }
   }
 
   function commitWord(): void {

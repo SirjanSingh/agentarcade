@@ -1,7 +1,8 @@
 import { formatScore, isBetter, type GameModule } from "./game";
+import { installGameTabs } from "./game-tabs";
 import { chooseExcluding } from "./picker";
 import { GAME_IDS, REGISTRY } from "./registry";
-import { FREE_GAME_IDS, isProGame } from "./tiers";
+import { FREE_GAME_IDS, isProGame, pickableGameIds } from "./tiers";
 import { getStats, installBrowserDriver, isPro, listen, pendingGame, recordResult, requestHide } from "./bridge";
 import { installDevBar } from "./devbar";
 import { renderStats } from "./stats-view";
@@ -16,8 +17,10 @@ const waitingEl = document.getElementById("waiting") as HTMLElement;
 const scorecard = document.getElementById("scorecard") as HTMLElement;
 const finalScore = document.getElementById("final-score") as HTMLElement;
 const finalSub = document.getElementById("final-sub") as HTMLElement;
+const tabsMount = document.getElementById("game-tabs-mount") as HTMLElement;
 
 let current: GameModule | null = null;
+let currentGameId: string | null = null;
 let currentScore: number | null = null;
 let currentBest: number | null = null;
 let startedAt = 0;
@@ -28,10 +31,50 @@ let startSeq = 0;
 /** In-flight mount — finish/stop must wait so freeze() hits a live game. */
 let starting: Promise<void> | null = null;
 
+const gameTabs = installGameTabs(
+  tabsMount,
+  async () => pickableGameIds(await isPro()),
+  (gameId) => void switchGame(gameId),
+);
+
+async function getPickableIds(): Promise<readonly string[]> {
+  return pickableGameIds(await isPro());
+}
+
+/** Save a partial score before leaving a game (tab switch or dismiss). */
+async function recordPartialIfAny(): Promise<void> {
+  if (current && currentScore !== null && Number.isFinite(currentScore)) {
+    current.freeze();
+    await recordResult(current.id, currentScore, performance.now() - startedAt, current.lowerIsBetter);
+    currentScore = null;
+  }
+}
+
+async function switchGame(gameId: string): Promise<void> {
+  if (showingStats) {
+    void startGame(gameId);
+    return;
+  }
+  if (currentGameId === gameId && current) return;
+  await recordPartialIfAny();
+  void startGame(gameId);
+}
+
+async function cycleGame(direction: 1 | -1): Promise<void> {
+  if (showingStats || !scorecard.hidden) return;
+  const ids = await getPickableIds();
+  if (ids.length === 0) return;
+  const idx = Math.max(0, ids.indexOf(currentGameId ?? ids[0]));
+  const next = ids[(idx + direction + ids.length) % ids.length];
+  await switchGame(next);
+}
+
 async function showStats(): Promise<void> {
   if (starting) await starting;
   teardown();
   showingStats = true;
+  gameTabs.setActive(null);
+  tabsMount.querySelector("#game-tabs")?.setAttribute("hidden", "");
   label.textContent = "Stats";
   bestEl.textContent = "";
   waitingEl.hidden = true;
@@ -61,8 +104,11 @@ async function startGame(gameId: string): Promise<void> {
     currentScore = null;
     startedAt = performance.now();
     currentBest = stats.games[game.id]?.best ?? null;
+    currentGameId = game.id;
 
     label.textContent = game.label;
+    gameTabs.setActive(game.id);
+    tabsMount.querySelector("#game-tabs")?.removeAttribute("hidden");
     bestEl.textContent = currentBest === null ? "no personal best yet" : `best ${formatScore(game, currentBest)}`;
     waitingEl.hidden = false;
     scorecard.hidden = true;
@@ -118,6 +164,7 @@ function teardown(): void {
   window.clearTimeout(hideTimer);
   current?.destroy();
   current = null;
+  currentGameId = null;
   currentScore = null;
   stage.replaceChildren();
   scorecard.hidden = true;
@@ -138,8 +185,15 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     event.preventDefault();
     void dismissNow();
+    return;
+  }
+  if (event.key === "Tab" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    event.preventDefault();
+    void cycleGame(event.shiftKey ? -1 : 1);
   }
 });
+
+void isPro().then(() => void gameTabs.refresh());
 
 void listen<ShowPayload>("game:show", (payload) => {
   void startGame(payload.gameId);
