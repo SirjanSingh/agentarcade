@@ -3,7 +3,7 @@
 A tray app that pops up a quick mini-game whenever your AI assistant starts
 thinking — and dismisses itself the moment it's done.
 
-**This repo is the free edition** — [Download v1.0.1 for Windows](https://github.com/SirjanSingh/claudegame/releases/latest)
+**This repo is the free edition** — [Download latest release](https://github.com/SirjanSingh/claudegame/releases/latest) (Windows `.exe`, macOS `.dmg`)
 
 Inspired by [microtaskrr](https://github.com/whoisyurii/microtaskrr), with two
 differences: cross-platform (Windows first), and you never press Esc to get back
@@ -55,6 +55,49 @@ irm $u -Method Post -ContentType "application/json" -Body '{"session_id":"test",
 ```
 
 You should see a game, then a score card, then the window disappears.
+
+---
+
+## Install on macOS
+
+**Requirements:** macOS 11+ (Apple Silicon or Intel), Node.js on PATH for Cursor hooks.
+
+### 1. Download and install
+
+1. Open **[Releases](https://github.com/SirjanSingh/claudegame/releases/latest)**
+2. Download the `.dmg` for your Mac:
+   - **Apple Silicon (M1/M2/M3):** `*_aarch64.dmg`
+   - **Intel Mac:** `*_x64.dmg`
+3. Open the `.dmg` and drag **claudegame** into **Applications**
+4. Launch from Applications — the app lives in the **menu bar** (no Dock icon)
+
+**Gatekeeper (unsigned build):** CI builds are not Apple-notarized yet. If macOS says the app is damaged or from an unidentified developer, either **right-click → Open** the first time, or run:
+
+```bash
+xattr -cr /Applications/claudegame.app
+```
+
+### 2. Start at login
+
+Menu bar icon → **Start at login**.
+
+### 3. Wire up your editor
+
+Same as Windows — [Cursor hooks](#cursor) or tray → **Enable Claude Code hooks**.
+
+### 4. Test it
+
+Menu bar → **Play a game now**, or from Terminal (app must be running):
+
+```bash
+curl -s -X POST http://127.0.0.1:47913/event \
+  -H 'Content-Type: application/json' \
+  -d '{"session_id":"test","hook_event_name":"UserPromptSubmit"}'
+sleep 3
+curl -s -X POST http://127.0.0.1:47913/event \
+  -H 'Content-Type: application/json' \
+  -d '{"session_id":"test","hook_event_name":"Stop"}'
+```
 
 ---
 
@@ -192,6 +235,9 @@ npm run tauri build    # installer → src-tauri/target/release/bundle/
 On Windows with `CARGO_TARGET_DIR=D:\rust\target`, the NSIS installer lands at
 `D:\rust\target\release\bundle\nsis\claudegame_1.0.1_x64-setup.exe`.
 
+**Releases:** Push a `v*` tag (or run the **Release** workflow manually) to build
+Windows and macOS installers on GitHub Actions — no Mac hardware required.
+
 ---
 
 ## Repo layout
@@ -282,6 +328,6 @@ MIT — see [LICENSE](LICENSE).
 
 | | Status |
 |---|---|
-| Windows | Primary. NSIS installer on Releases. Focus returns to previous window on hide. |
-| macOS | Code in place; not yet built on hardware. |
-| Linux | Code in place; focus restore depends on window manager. |
+| Windows | Primary. NSIS installer on Releases (local or CI). Focus returns to previous window on hide. |
+| macOS | **CI builds** on every release tag (`aarch64` + `x64` `.dmg`). Unsigned — see install notes above. |
+| Linux | Code in place; not shipped on Releases yet. |
