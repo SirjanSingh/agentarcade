@@ -1,7 +1,10 @@
 // Release builds have no console window — this is a tray app.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod atomic_write;
+mod diagnostics;
 mod logic;
+mod prefs;
 mod server;
 mod stats;
 mod tray;
@@ -14,24 +17,47 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
-use logic::tiers;
+use diagnostics::{Diagnostics, LastHookEvent, ServerStatus};
+use logic::games;
 use logic::tracker::{Action, Tracker};
+use prefs::Prefs;
 use server::{HookMessage, DEFAULT_PORT};
 use stats::Stats;
 
-fn pro_unlocked(stats: &Stats) -> bool {
-    std::env::var("CLAUDEGAME_PRO")
-        .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-        || stats.pro_unlocked
-}
+/// How often the tracker is asked to reconsider.
+///
+/// This used to be 60s when its only job was sweeping dead sessions. The show
+/// delay is now decided here too, so the tick is load-bearing for timing: at
+/// 500ms a 10s delay lands within half a second of where the user asked for it.
+/// The cost is a mutex lock and a scan of a handful of map entries twice a
+/// second, which is nothing.
+const TICK: Duration = Duration::from_millis(500);
 
 pub struct AppState {
     pub tracker: Mutex<Tracker>,
     pub stats: Mutex<Stats>,
+    pub prefs: Mutex<Prefs>,
     pub stats_path: PathBuf,
+    pub prefs_path: PathBuf,
     pub settings_path: PathBuf,
     pub hook_url: String,
+    pub port: u16,
+    /// Whether the hook endpoint actually bound. Without this a port conflict
+    /// is invisible: the tray icon appears, games never do, and the reason only
+    /// ever reached a stderr that release builds do not have.
+    pub server_status: Mutex<ServerStatus>,
+    pub last_hook_event: Mutex<Option<LastHookEvent>>,
+}
+
+impl AppState {
+    /// Persist prefs, logging rather than propagating — a failed preference
+    /// write must never take down the action the user asked for.
+    pub fn save_prefs(&self) {
+        let prefs = self.prefs.lock().unwrap();
+        if let Err(err) = prefs.save(&self.prefs_path) {
+            eprintln!("[agentarcade] could not save prefs: {err}");
+        }
+    }
 }
 
 /// Turn a tracker decision into window and webview effects.
@@ -71,7 +97,7 @@ fn watchdog<R: Runtime>(app: &AppHandle<R>) {
             tracker.is_visible() && !tracker.has_active_sessions()
         };
         if stuck {
-            eprintln!("[claudegame] frontend never dismissed the window; hiding it");
+            eprintln!("[agentarcade] frontend never dismissed the window; hiding it");
             hide_now(&app);
         }
     });
@@ -83,11 +109,6 @@ fn hide_now<R: Runtime>(app: &AppHandle<R>) {
     if let Some(state) = app.try_state::<AppState>() {
         state.tracker.lock().unwrap().on_hidden();
     }
-}
-
-#[tauri::command]
-fn is_pro(state: State<AppState>) -> bool {
-    pro_unlocked(&state.stats.lock().unwrap())
 }
 
 #[tauri::command]
@@ -106,7 +127,7 @@ fn record_result(
     let mut stats = state.stats.lock().unwrap();
     stats.record(&game_id, score, duration_ms, lower_is_better);
     if let Err(err) = stats.save(&state.stats_path) {
-        eprintln!("[claudegame] could not save stats: {err}");
+        eprintln!("[agentarcade] could not save stats: {err}");
     }
 }
 
@@ -124,6 +145,88 @@ fn pending_game(state: State<AppState>) -> Option<String> {
     state.tracker.lock().unwrap().current_game()
 }
 
+/// The registered games plus which of them the user has switched off.
+#[tauri::command]
+fn get_prefs(state: State<AppState>) -> serde_json::Value {
+    let prefs = state.prefs.lock().unwrap();
+    json!({
+        "showDelaySecs": prefs.show_delay_secs,
+        "scorecardDurationMs": prefs.scorecard_duration_ms,
+        "disabledGames": prefs.disabled_games,
+        "firstRunComplete": prefs.first_run_complete,
+        "allGames": games::GAME_IDS,
+    })
+}
+
+#[tauri::command]
+fn set_show_delay(state: State<AppState>, secs: u64) {
+    {
+        let mut prefs = state.prefs.lock().unwrap();
+        prefs.show_delay_secs = secs;
+        state
+            .tracker
+            .lock()
+            .unwrap()
+            .set_show_delay(prefs.show_delay());
+    }
+    state.save_prefs();
+}
+
+#[tauri::command]
+fn set_game_enabled(state: State<AppState>, game_id: String, enabled: bool) {
+    {
+        let mut prefs = state.prefs.lock().unwrap();
+        prefs.disabled_games.retain(|id| id != &game_id);
+        if !enabled {
+            prefs.disabled_games.push(game_id);
+        }
+        state
+            .tracker
+            .lock()
+            .unwrap()
+            .set_games(prefs.enabled_games(&games::game_ids()));
+    }
+    state.save_prefs();
+}
+
+#[tauri::command]
+fn complete_onboarding(state: State<AppState>) {
+    state.prefs.lock().unwrap().first_run_complete = true;
+    state.save_prefs();
+}
+
+/// Everything the Status view needs to explain why games are or are not
+/// appearing, without the user reading a log they cannot reach.
+#[tauri::command]
+fn diagnostics_snapshot(state: State<AppState>) -> Diagnostics {
+    diagnostics::snapshot(&state)
+}
+
+#[tauri::command]
+fn remove_orphaned_hooks(state: State<AppState>) -> Result<usize, String> {
+    tray::clean_orphaned_hooks(&state)
+}
+
+#[tauri::command]
+fn set_hooks_installed(state: State<AppState>, installed: bool) -> Result<(), String> {
+    tray::set_hooks(&state, installed)
+}
+
+#[tauri::command]
+fn play_now(app: AppHandle) {
+    let action = {
+        let state = app.state::<AppState>();
+        let mut tracker = state.tracker.lock().unwrap();
+        tracker.force_show(Instant::now())
+    };
+    apply(&app, action);
+}
+
+#[tauri::command]
+fn open_settings(app: AppHandle, view: Option<String>) {
+    window::open_settings(&app, view.as_deref().unwrap_or("status"));
+}
+
 fn seed() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -132,10 +235,32 @@ fn seed() -> u64 {
 }
 
 fn port() -> u16 {
-    std::env::var("CLAUDEGAME_PORT")
+    std::env::var("AGENTARCADE_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(DEFAULT_PORT)
+}
+
+/// Fail loudly rather than silently.
+///
+/// A release build has no console (`windows_subsystem = "windows"`), so an
+/// `.expect()` here would look to the user like the app simply never started.
+/// Write the reason somewhere retrievable, then say so on screen.
+fn fatal(app: &AppHandle, msg: &str) -> ! {
+    eprintln!("[agentarcade] fatal: {msg}");
+    let log = std::env::temp_dir().join("agentarcade-startup-error.log");
+    let _ = std::fs::write(&log, format!("agentarcade could not start.\n\n{msg}\n"));
+
+    use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+    app.dialog()
+        .message(format!(
+            "{msg}\n\nDetails were written to:\n{}",
+            log.display()
+        ))
+        .title("agentarcade could not start")
+        .kind(MessageDialogKind::Error)
+        .blocking_show();
+    std::process::exit(1);
 }
 
 fn main() {
@@ -143,21 +268,31 @@ fn main() {
     let hook_url = format!("http://127.0.0.1:{port}/event");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             // A second launch just means "I want the tray app" — it is already
-            // running, so nothing to do but say hello in the log.
-            eprintln!("[claudegame] already running ({})", app.package_info().name);
+            // running, so surface the settings window rather than doing nothing.
+            eprintln!("[agentarcade] already running ({})", app.package_info().name);
+            window::open_settings(app, "status");
         }))
         .invoke_handler(tauri::generate_handler![
-            is_pro,
             get_stats,
             record_result,
             hide_window,
-            pending_game
+            pending_game,
+            get_prefs,
+            set_show_delay,
+            set_game_enabled,
+            complete_onboarding,
+            diagnostics_snapshot,
+            remove_orphaned_hooks,
+            set_hooks_installed,
+            play_now,
+            open_settings
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -167,42 +302,78 @@ fn main() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            let stats_path = handle
-                .path()
-                .app_data_dir()
-                .expect("app data dir")
-                .join("stats.json");
-            let settings_path = handle
-                .path()
-                .home_dir()
-                .expect("home dir")
-                .join(".claude")
-                .join("settings.json");
+            let Ok(data_dir) = handle.path().app_data_dir() else {
+                fatal(
+                    &handle,
+                    "Windows did not give this app a data directory, so settings and stats \
+                     cannot be saved.",
+                );
+            };
+            let Ok(home) = handle.path().home_dir() else {
+                fatal(
+                    &handle,
+                    "Your home directory could not be found, so agent hooks cannot be installed.",
+                );
+            };
+
+            let stats_path = data_dir.join("stats.json");
+            let prefs_path = data_dir.join("prefs.json");
+            let settings_path = home.join(".claude").join("settings.json");
 
             let stats = Stats::load(&stats_path);
-            let unlocked = pro_unlocked(&stats);
+            let prefs = Prefs::load(&prefs_path);
+
+            let all_games = games::game_ids();
+            let mut tracker = Tracker::new(
+                prefs.enabled_games(&all_games),
+                prefs.show_delay(),
+                seed(),
+            );
+            // A pause that was running at shutdown keeps its remaining time.
+            tracker.restore_pause(prefs.pause_at(Instant::now(), prefs::now_epoch_millis()));
+
+            let first_run = !prefs.first_run_complete;
 
             app.manage(AppState {
-                tracker: Mutex::new(Tracker::new(
-                    tiers::FREE_GAMES.iter().map(|s| s.to_string()).collect(),
-                    tiers::PRO_GAMES.iter().map(|s| s.to_string()).collect(),
-                    unlocked,
-                    seed(),
-                )),
+                tracker: Mutex::new(tracker),
                 stats: Mutex::new(stats),
+                prefs: Mutex::new(prefs),
                 stats_path,
+                prefs_path,
                 settings_path,
                 hook_url: hook_url.clone(),
+                port,
+                server_status: Mutex::new(ServerStatus::Starting),
+                last_hook_event: Mutex::new(None),
             });
 
             tray::build(&handle)?;
 
             let (tx, mut rx) = tokio::sync::mpsc::channel::<HookMessage>(32);
 
-            // Hook endpoint.
+            // Hook endpoint. A bind failure is recorded in state rather than
+            // only printed, so the Status view can explain the silence.
+            let server_handle = handle.clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(err) = server::serve(port, tx).await {
-                    eprintln!("[claudegame] hook server failed on port {port}: {err}");
+                match server::serve(port, tx).await {
+                    Ok(()) => {}
+                    Err(err) => {
+                        let reason = err.to_string();
+                        eprintln!("[agentarcade] hook server failed on port {port}: {reason}");
+                        let state = server_handle.state::<AppState>();
+                        *state.server_status.lock().unwrap() = ServerStatus::Failed { reason };
+                    }
+                }
+            });
+            // The listener binds before serve() starts yielding, so anything
+            // still Starting a moment later is Listening.
+            let ready_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(400)).await;
+                let state = ready_handle.state::<AppState>();
+                let mut status = state.server_status.lock().unwrap();
+                if matches!(*status, ServerStatus::Starting) {
+                    *status = ServerStatus::Listening;
                 }
             });
 
@@ -215,20 +386,26 @@ fn main() {
                     let state = event_handle.state::<AppState>();
                     let action = {
                         let mut tracker = state.tracker.lock().unwrap();
-                        match message {
-                            HookMessage::Show { session_id } => tracker.on_show_event(&session_id, now),
-                            HookMessage::Stop { session_id } => tracker.on_stop_event(&session_id, now),
+                        match &message {
+                            HookMessage::Show { session_id } => {
+                                tracker.on_show_event(session_id, now)
+                            }
+                            HookMessage::Stop { session_id } => {
+                                tracker.on_stop_event(session_id, now)
+                            }
                         }
                     };
+                    *state.last_hook_event.lock().unwrap() = Some(LastHookEvent::from(&message));
                     apply(&event_handle, action);
                 }
             });
 
-            // Sweep sessions whose terminal died without ever sending Stop.
+            // Decides delayed shows, and sweeps sessions whose terminal died
+            // without ever sending Stop.
             let tick_handle = handle.clone();
             tauri::async_runtime::spawn(async move {
                 loop {
-                    tokio::time::sleep(Duration::from_secs(60)).await;
+                    tokio::time::sleep(TICK).await;
                     let action = {
                         let state = tick_handle.state::<AppState>();
                         let mut tracker = state.tracker.lock().unwrap();
@@ -238,10 +415,16 @@ fn main() {
                 }
             });
 
+            if first_run {
+                window::open_settings(&handle, "welcome");
+            }
+
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("failed to start claudegame")
+        // Runs before any window exists, so there is nowhere to show a dialog.
+        // Tauri's own bootstrap failing is both rare and unrecoverable.
+        .expect("failed to start agentarcade")
         .run(|_app, event| {
             // The window closing must not quit the app — it lives in the tray.
             // An explicit exit (tray "Quit") carries a code, and must be let through.

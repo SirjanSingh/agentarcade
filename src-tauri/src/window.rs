@@ -4,9 +4,10 @@
 //! repaid on hide: on Windows we remember which window was in front before we
 //! barged in and put it back, otherwise the user is left typing into nothing.
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 pub const MAIN_WINDOW: &str = "main";
+pub const SETTINGS_WINDOW: &str = "settings";
 
 /// What the remembered-window slot should become on a `show`.
 ///
@@ -35,6 +36,39 @@ pub fn hide<R: Runtime>(app: &AppHandle<R>) {
     restore_foreground();
 }
 
+/// Open (or focus) the setup and diagnostics window.
+///
+/// A second window rather than a reuse of the game window: that one is
+/// deliberately borderless, always-on-top, off the taskbar and hidden, and a
+/// settings surface needs the opposite of all four. It is built on demand
+/// rather than declared in tauri.conf.json so a session that never opens it
+/// never pays for a second webview.
+pub fn open_settings<R: Runtime>(app: &AppHandle<R>, view: &str) {
+    if let Some(window) = app.get_webview_window(SETTINGS_WINDOW) {
+        let _ = window.emit_to(SETTINGS_WINDOW, "settings:view", view);
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return;
+    }
+
+    let url = format!("settings.html?view={view}");
+    match WebviewWindowBuilder::new(app, SETTINGS_WINDOW, WebviewUrl::App(url.into()))
+        .title("agentarcade")
+        .inner_size(680.0, 620.0)
+        .min_inner_size(460.0, 420.0)
+        .resizable(true)
+        .decorations(true)
+        .always_on_top(false)
+        .skip_taskbar(false)
+        .center()
+        .build()
+    {
+        Ok(_) => {}
+        Err(err) => eprintln!("[agentarcade] could not open the settings window: {err}"),
+    }
+}
+
 #[cfg(windows)]
 mod platform {
     use std::sync::Mutex;
@@ -60,7 +94,7 @@ mod platform {
 
     pub fn remember() {
         let hwnd = unsafe { GetForegroundWindow() };
-        let candidate = (!hwnd.is_invalid() && !is_ours(hwnd)).then(|| hwnd.0 as isize);
+        let candidate = (!hwnd.is_invalid() && !is_ours(hwnd)).then_some(hwnd.0 as isize);
         let mut previous = PREVIOUS.lock().unwrap();
         *previous = next_previous(*previous, candidate);
     }
@@ -92,6 +126,11 @@ fn remember_foreground() {
     platform::remember();
 }
 
+fn restore_foreground() {
+    platform::restore();
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::next_previous;
@@ -117,8 +156,4 @@ mod tests {
     fn our_own_window_does_not_evict_a_good_target() {
         assert_eq!(next_previous(Some(0x1111), None), Some(0x1111));
     }
-}
-
-fn restore_foreground() {
-    platform::restore();
 }

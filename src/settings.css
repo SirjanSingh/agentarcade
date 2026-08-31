@@ -1,0 +1,233 @@
+/* Setup and diagnostics window. Shares the palette with the game window but
+   not its chrome: this one is an ordinary resizable window with a title bar. */
+
+:root {
+  --bg: #0c0d11;
+  --panel: #12141a;
+  --line: rgba(255, 255, 255, 0.07);
+  --fg: #e8eaee;
+  --muted: #8b909b;
+  --accent: #7fd6a4;
+  --warn: #e0704a;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --line: rgba(0, 0, 0, 0.09);
+    --fg: #16181d;
+    --muted: #6b7280;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+#settings {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+#views {
+  display: flex;
+  gap: 2px;
+  padding: 10px 14px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+#views button {
+  appearance: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+#views button[aria-selected="true"] {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+
+#panel {
+  flex: 1;
+  padding: 20px 22px 28px;
+}
+
+h1 {
+  font-size: 17px;
+  margin: 0 0 4px;
+}
+
+h2 {
+  font-size: 13px;
+  margin: 22px 0 8px;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
+p {
+  margin: 0 0 12px;
+  max-width: 62ch;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Status rows -------------------------------------------------------- */
+
+.rows {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 10px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row .key {
+  flex: 0 0 34%;
+  color: var(--muted);
+}
+
+.row .val {
+  flex: 1;
+  word-break: break-word;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.badge.ok {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+
+.badge.bad {
+  background: color-mix(in srgb, var(--warn) 22%, transparent);
+  color: var(--warn);
+}
+
+/* Steps -------------------------------------------------------------- */
+
+ol.steps {
+  margin: 0;
+  padding-left: 20px;
+}
+
+ol.steps li {
+  margin-bottom: 14px;
+}
+
+/* Controls ----------------------------------------------------------- */
+
+button.action {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+
+button.action:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button.action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.action.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.choices {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+label.choice,
+label.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+label.choice:has(input:checked) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.games {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+code {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.note {
+  border-left: 2px solid var(--warn);
+  padding-left: 12px;
+  margin: 14px 0;
+  color: var(--muted);
+}

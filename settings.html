@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>agentarcade</title>
+    <link rel="stylesheet" href="/src/settings.css" />
+  </head>
+  <body>
+    <div id="settings">
+      <nav id="views" role="tablist" aria-label="Sections">
+        <button type="button" role="tab" data-view="welcome">Setup</button>
+        <button type="button" role="tab" data-view="status">Status</button>
+        <button type="button" role="tab" data-view="options">Options</button>
+      </nav>
+      <main id="panel"></main>
+    </div>
+    <script type="module" src="/src/settings.ts"></script>
+  </body>
+</html>
