@@ -1,14 +1,17 @@
 {
-  "name": "claudegame",
+  "name": "agentarcade",
   "version": "1.0.1",
   "private": true,
-  "description": "Mini-games that pop up while Claude Code is thinking, and vanish when it's done.",
+  "license": "MIT",
+  "description": "Mini-games that appear while your coding agent is thinking, and vanish when it's done.",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "check:game-ids": "node scripts/check-game-ids.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {

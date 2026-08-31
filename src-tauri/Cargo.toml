@@ -1,8 +1,10 @@
 [package]
-name = "claudegame"
+name = "agentarcade"
 version = "1.0.1"
-description = "Mini-games while Claude Code thinks"
+description = "Mini-games while your coding agent thinks"
 authors = ["Sirjan Singh"]
+license = "MIT"
+repository = "https://github.com/SirjanSingh/agentarcade"
 edition = "2021"
 # is_none_or (used in logic/hooks.rs) stabilised in 1.82.
 rust-version = "1.82"
@@ -14,6 +16,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 # preserve_order keeps the user's settings.json key order intact through an
 # install/uninstall round trip — see logic/hooks.rs.
