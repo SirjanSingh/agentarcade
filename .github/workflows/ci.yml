@@ -72,3 +72,32 @@ jobs:
           node-version: lts/*
 
       - run: node scripts/check-game-ids.mjs
+
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Prebuilt binary, so this job stays under a minute. Deliberately not
+      # rustsec/audit-check: that one wants issues:write and files GitHub
+      # issues, which is noise on a repo with one maintainer.
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # 10 direct dependencies pull in 484 transitive crates that nothing was
+      # scanning before. Default behaviour: a real advisory fails the job, an
+      # `unmaintained` or `unsound` warning prints and passes.
+      #
+      # Not `--deny warnings`. As of writing that fails on 18 warnings, 16 of
+      # which are the gtk-rs 0.18 GTK3 bindings Tauri pulls in for its Linux
+      # backend. They are unreachable on Windows and macOS, and unfixable here
+      # until Tauri moves off them. A gate that is red for reasons nobody can
+      # act on gets ignored, and then it is not a gate.
+      - name: Audit
+        run: cargo audit --file src-tauri/Cargo.lock
