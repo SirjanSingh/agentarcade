@@ -63,6 +63,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let settings = MenuItem::with_id(app, "settings", "Settings & status…", true, None::<&str>)?;
     let show_stats = MenuItem::with_id(app, "show_stats", "Show stats", true, None::<&str>)?;
     let open_stats = MenuItem::with_id(app, "open_stats", "Open stats file", true, None::<&str>)?;
+    let check_updates =
+        MenuItem::with_id(app, "check_updates", "Check for updates…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit agentarcade", true, None::<&str>)?;
 
     let menu = Menu::with_items(
@@ -79,6 +81,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             &autostart,
             &settings,
             &open_stats,
+            &check_updates,
             &PredefinedMenuItem::separator(app)?,
             &quit,
         ],
@@ -140,6 +143,10 @@ fn on_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
         }
         "open_stats" => {
             reveal(&state.stats_path);
+            crate::logic::tracker::Action::Nothing
+        }
+        "check_updates" => {
+            check_for_updates(app);
             crate::logic::tracker::Action::Nothing
         }
         "quit" => {
@@ -320,6 +327,68 @@ pub fn clean_orphaned_hooks(state: &AppState) -> Result<usize, String> {
 }
 
 /// Say it on screen, not just to a stderr a release build does not have.
+/// Ask GitHub whether there is a newer release, and install it if so.
+///
+/// Deliberately manual rather than a check on every launch: this is a tray
+/// toy, and a background process that phones out on its own would contradict
+/// the "no network calls" promise in the README. The only outbound request in
+/// the binary is the one the user asks for by clicking this.
+///
+/// The downloaded artifact is verified against the public key compiled into
+/// the binary before anything is written, so a compromised release host still
+/// cannot ship a payload we would install.
+fn check_for_updates<R: Runtime>(app: &AppHandle<R>) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+    use tauri_plugin_updater::UpdaterExt;
+
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let updater = match app.updater() {
+            Ok(updater) => updater,
+            Err(err) => return notify(&app, &format!("Could not start the updater: {err}"), true),
+        };
+
+        match updater.check().await {
+            Ok(Some(update)) => {
+                let version = update.version.clone();
+                match update.download_and_install(|_, _| {}, || {}).await {
+                    Ok(()) => {
+                        app.dialog()
+                            .message(format!(
+                                "agentarcade {version} is installed.                                  The app will restart to finish."
+                            ))
+                            .title("Update installed")
+                            .kind(MessageDialogKind::Info)
+                            .blocking_show();
+                        app.restart();
+                    }
+                    Err(err) => notify(&app, &format!("The update failed to install: {err}"), true),
+                }
+            }
+            Ok(None) => notify(&app, "You are on the latest version.", false),
+            Err(err) => notify(&app, &format!("Could not check for updates: {err}"), true),
+        }
+    });
+}
+
+fn notify<R: Runtime>(app: &AppHandle<R>, message: &str, is_error: bool) {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+    eprintln!("[agentarcade] {message}");
+    let app = app.clone();
+    let message = message.to_string();
+    std::thread::spawn(move || {
+        app.dialog()
+            .message(message)
+            .title("agentarcade")
+            .kind(if is_error {
+                MessageDialogKind::Error
+            } else {
+                MessageDialogKind::Info
+            })
+            .blocking_show();
+    });
+}
+
 fn report<R: Runtime>(app: &AppHandle<R>, message: &str) {
     use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
     eprintln!("[agentarcade] {message}");

@@ -1,5 +1,9 @@
 # agentarcade
 
+[![CI](https://github.com/SirjanSingh/agentarcade/actions/workflows/ci.yml/badge.svg)](https://github.com/SirjanSingh/agentarcade/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/SirjanSingh/agentarcade?label=download)](https://github.com/SirjanSingh/agentarcade/releases/latest)
+
 Your coding agent is thinking. Play snake until it's done.
 
 agentarcade is a tray app that opens a small game once your agent has been
@@ -188,6 +192,18 @@ Editor hook --HTTP POST--> 127.0.0.1:47913/event   (inside the tray app)
 The decision to show a game lives in a 500ms tick loop, not in the hook handler.
 That is what makes a session which stops before the delay elapses open nothing
 at all.
+
+---
+
+## Updates
+
+Tray, then **Check for updates**. If there's a newer release it downloads,
+verifies and installs it, then restarts.
+
+It only checks when you click. There's no background update poll, because a
+tray app that quietly phones home would contradict the rest of this page. The
+download is checked against a signing key compiled into the binary, so a
+release that isn't signed with the matching private key is refused.
 
 ---
 
