@@ -14,6 +14,12 @@ for Windows (`.exe`) or macOS (`.dmg`).
   <img src="docs/demo.gif" alt="A short prompt is answered and nothing happens. A longer one crosses ten seconds, a snake game appears, and it hides itself the moment the agent finishes." width="760">
 </p>
 
+<p align="center">
+  <em>Want the longer version? There's a
+  <a href="docs/tour.mp4">60-second tour</a> with all eight games, the settings
+  and sound.</em>
+</p>
+
 ---
 
 ## The delay is the whole point
