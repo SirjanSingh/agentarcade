@@ -30,6 +30,32 @@ fn is_ours(hook: &Value, url: &str) -> bool {
     hook.get("url").and_then(Value::as_str) == Some(url)
 }
 
+/// True for any http hook whose URL looks like one of ours on *some* port.
+///
+/// The port can move (a conflict, or AGENTARCADE_PORT), and an entry left at
+/// the old port is dead weight that adds a 2s timeout to every prompt. Matching
+/// on shape rather than on the exact current URL is what lets us find those.
+fn looks_like_ours(hook: &Value, path: &str) -> bool {
+    hook.get("type").and_then(Value::as_str) == Some("http")
+        && hook
+            .get("url")
+            .and_then(Value::as_str)
+            .is_some_and(|u| is_our_url_shape(u, path))
+}
+
+fn is_our_url_shape(url: &str, path: &str) -> bool {
+    let Some(rest) = url
+        .strip_prefix("http://127.0.0.1:")
+        .or_else(|| url.strip_prefix("http://localhost:"))
+    else {
+        return false;
+    };
+    let Some((port, tail)) = rest.split_once('/') else {
+        return false;
+    };
+    !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()) && format!("/{tail}") == path
+}
+
 /// True if every one of our hooks is already present.
 pub fn is_installed(settings: &Value, url: &str) -> bool {
     EVENTS.iter().all(|event| {
@@ -114,6 +140,54 @@ pub fn uninstall(settings: &mut Value, url: &str) {
     if hooks.is_empty() {
         root.remove("hooks");
     }
+}
+
+/// Our hook URLs that are present but point somewhere we are not listening.
+///
+/// Returned rather than removed: a user may have deliberately kept an entry for
+/// a second install on another port, so the decision is theirs to confirm.
+pub fn find_orphaned(settings: &Value, current_url: &str) -> Vec<String> {
+    let path = current_url
+        .rsplit_once('/')
+        .map(|(_, tail)| format!("/{tail}"))
+        .unwrap_or_else(|| "/event".to_string());
+
+    let mut found: Vec<String> = Vec::new();
+    let Some(hooks) = settings.get("hooks").and_then(Value::as_object) else {
+        return found;
+    };
+    for event in EVENTS {
+        let Some(groups) = hooks.get(event).and_then(Value::as_array) else {
+            continue;
+        };
+        for g in groups {
+            let Some(list) = g.get("hooks").and_then(Value::as_array) else {
+                continue;
+            };
+            for h in list {
+                if !looks_like_ours(h, &path) {
+                    continue;
+                }
+                let Some(url) = h.get("url").and_then(Value::as_str) else {
+                    continue;
+                };
+                if url != current_url && !found.iter().any(|u| u == url) {
+                    found.push(url.to_string());
+                }
+            }
+        }
+    }
+    found
+}
+
+/// Remove every orphaned entry `find_orphaned` reported. Returns how many
+/// distinct URLs were dropped.
+pub fn remove_orphaned(settings: &mut Value, current_url: &str) -> usize {
+    let orphans = find_orphaned(settings, current_url);
+    for url in &orphans {
+        uninstall(settings, url);
+    }
+    orphans.len()
 }
 
 #[cfg(test)]
@@ -227,5 +301,67 @@ mod tests {
         let mut settings = json!([1, 2, 3]);
         install(&mut settings, URL);
         assert!(is_installed(&settings, URL));
+    }
+
+    #[test]
+    fn find_orphaned_detects_a_different_port() {
+        let mut settings = json!({});
+        install(&mut settings, "http://127.0.0.1:9999/event");
+        install(&mut settings, URL);
+        assert_eq!(
+            find_orphaned(&settings, URL),
+            vec!["http://127.0.0.1:9999/event".to_string()]
+        );
+    }
+
+    #[test]
+    fn find_orphaned_ignores_the_current_url() {
+        let mut settings = json!({});
+        install(&mut settings, URL);
+        assert!(find_orphaned(&settings, URL).is_empty());
+    }
+
+    #[test]
+    fn find_orphaned_ignores_unrelated_third_party_hooks() {
+        let settings = json!({
+            "hooks": {
+                "Stop": [
+                    { "hooks": [{ "type": "command", "command": "notify-send done" }] },
+                    { "hooks": [{ "type": "http", "url": "https://example.com/webhook" }] }
+                ]
+            }
+        });
+        assert!(find_orphaned(&settings, URL).is_empty());
+    }
+
+    #[test]
+    fn remove_orphaned_leaves_the_current_port_alone() {
+        let mut settings = json!({});
+        install(&mut settings, "http://127.0.0.1:9999/event");
+        install(&mut settings, URL);
+        assert_eq!(remove_orphaned(&mut settings, URL), 1);
+        assert!(is_installed(&settings, URL));
+        assert!(!is_installed(&settings, "http://127.0.0.1:9999/event"));
+    }
+
+    #[test]
+    fn remove_orphaned_keeps_someone_elses_hooks() {
+        let original = json!({
+            "hooks": {
+                "Stop": [{ "hooks": [{ "type": "command", "command": "echo hi" }] }]
+            }
+        });
+        let mut settings = original.clone();
+        assert_eq!(remove_orphaned(&mut settings, URL), 0);
+        assert_eq!(settings, original);
+    }
+
+    #[test]
+    fn url_shape_only_matches_loopback_event_urls() {
+        assert!(is_our_url_shape("http://127.0.0.1:1/event", "/event"));
+        assert!(is_our_url_shape("http://localhost:47913/event", "/event"));
+        assert!(!is_our_url_shape("http://example.com:47913/event", "/event"));
+        assert!(!is_our_url_shape("http://127.0.0.1:47913/other", "/event"));
+        assert!(!is_our_url_shape("http://127.0.0.1:abc/event", "/event"));
     }
 }
