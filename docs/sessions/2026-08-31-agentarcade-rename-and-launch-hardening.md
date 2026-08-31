@@ -154,3 +154,44 @@ Both were mine, both found by tests written alongside the code rather than by in
 6. **Unsigned binaries.** SmartScreen and Gatekeeper will cost more installs than every
    security item combined. ~$200–400/yr signing + $99/yr Apple, when it is worth it.
 7. **GitHub repo itself still needs renaming** to match, plus description and topics.
+
+---
+
+## Addendum, same day: the three cheap launch items
+
+Picked up items 2, 3 and 4 below after the first push.
+
+**`cargo audit` in CI.** Result worth recording: **zero actual vulnerabilities** across the
+484 crates. There are 18 warnings, but 16 are the gtk-rs 0.18 GTK3 bindings Tauri pulls in
+for its Linux backend, which are unreachable on Windows and macOS and not fixable here. So
+the job runs plain `cargo audit`, **not** `--deny warnings`: a gate that is permanently red
+for reasons nobody can act on gets ignored, and then it is not a gate. Real advisories still
+fail it. Verified locally against the real lockfile with a prebuilt binary (C: had 1.2 GB
+free, so `cargo install` was not an option), then confirmed green on the actual CI run.
+
+Uses `taiki-e/install-action` rather than `rustsec/audit-check`, which wants `issues: write`
+and files GitHub issues. That is noise on a one-maintainer repo.
+
+**README rewrite.** 14 em dashes to 0, via the `human-writing` skill. Two structural changes
+matter more than the prose: it now opens with what the app *does* rather than what it is, and
+the privacy section moved from near the bottom to third, retitled "What it does to your
+machine". "No network calls at all, and it backs up your settings.json before touching it" is
+the objection a careful reader has to a tray app that edits their editor config. Burying it
+was a waste.
+
+**The demo.** `docs/demo.gif` (5.4 MB, 12fps, 800px so GitHub renders it inline) plus
+`docs/demo.mp4`. Built with Remotion as stylised UI, not a screen capture, which was the
+right call for one reason: it can hold on the beat where a short prompt is answered at 2.9s
+and **nothing happens**. A recording of a real session cannot stage that, and a demo that
+only showed the game popping would sell the opposite of the product. Palette taken from the
+frontend CSS so it matches the app.
+
+It is a promo, not proof the binary works. A real `gdigrab` capture of the release build
+during an actual agent wait is still worth doing separately.
+
+The vendored Remotion skill sits at `.claude/skills/remotion-motion-graphics/` and is
+deliberately **left untracked** — whether a third-party skill belongs in a public repo is the
+maintainer's call.
+
+**Open items now:** 1 (repo still private, still the only blocker), 5, 6 and 7 from the list
+above. Items 2, 3 and 4 are done.
