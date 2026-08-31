@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -55,9 +55,6 @@ pub struct Stats {
     #[serde(default)]
     pub recent: Vec<RunRecord>,
     pub totals: Totals,
-    /// Unlocks Pro games and future Pro features once a license is activated.
-    #[serde(default)]
-    pub pro_unlocked: bool,
 }
 
 impl Default for Stats {
@@ -68,7 +65,6 @@ impl Default for Stats {
             games: BTreeMap::new(),
             recent: Vec::new(),
             totals: Totals::default(),
-            pro_unlocked: false,
         }
     }
 }
@@ -112,7 +108,7 @@ impl Stats {
                 stats
             }
             Err(err) => {
-                eprintln!("[claudegame] stats.json unreadable ({err}); starting fresh");
+                eprintln!("[agentarcade] stats.json unreadable ({err}); starting fresh");
                 let _ = fs::write(path.with_extension("json.bak"), raw);
                 Self::default()
             }
@@ -147,16 +143,8 @@ impl Stats {
         self.recent.truncate(RECENT_LIMIT);
     }
 
-    /// Write via a temp file + rename so a crash mid-write cannot truncate the
-    /// existing stats. `fs::rename` replaces the destination on all three
-    /// platforms.
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let tmp: PathBuf = path.with_extension("json.tmp");
-        fs::write(&tmp, serde_json::to_vec_pretty(self)?)?;
-        fs::rename(&tmp, path)
+        crate::atomic_write::write(path, &serde_json::to_vec_pretty(self)?)
     }
 }
 
@@ -200,7 +188,7 @@ mod tests {
 
     #[test]
     fn save_then_load_round_trips() {
-        let dir = std::env::temp_dir().join(format!("claudegame-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("agentarcade-test-{}", std::process::id()));
         let path = dir.join("stats.json");
         let _ = fs::create_dir_all(&dir);
 
@@ -223,7 +211,7 @@ mod tests {
 
     #[test]
     fn corrupt_file_is_backed_up_not_lost() {
-        let dir = std::env::temp_dir().join(format!("claudegame-corrupt-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("agentarcade-corrupt-{}", std::process::id()));
         let path = dir.join("stats.json");
         let _ = fs::create_dir_all(&dir);
         fs::write(&path, "{ not json at all").unwrap();
@@ -260,7 +248,7 @@ mod tests {
 
     #[test]
     fn a_v1_file_upgrades_without_losing_bests() {
-        let dir = std::env::temp_dir().join(format!("claudegame-v1-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("agentarcade-v1-{}", std::process::id()));
         let path = dir.join("stats.json");
         let _ = fs::create_dir_all(&dir);
         // Exactly what v1 wrote: no deviceId, no recent.
@@ -281,7 +269,7 @@ mod tests {
 
     #[test]
     fn device_id_survives_a_round_trip() {
-        let dir = std::env::temp_dir().join(format!("claudegame-dev-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("agentarcade-dev-{}", std::process::id()));
         let path = dir.join("stats.json");
         let _ = fs::create_dir_all(&dir);
 

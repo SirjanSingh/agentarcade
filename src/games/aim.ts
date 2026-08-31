@@ -1,4 +1,4 @@
-import type { GameApi, GameModule } from "../../game";
+import type { GameApi, GameModule } from "../game";
 
 const START_RADIUS = 34;
 const MIN_RADIUS = 15;

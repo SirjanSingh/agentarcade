@@ -1,9 +1,7 @@
 import { formatScore, isBetter, type GameModule } from "./game";
 import { installGameTabs } from "./game-tabs";
-import { chooseExcluding } from "./picker";
 import { GAME_IDS, REGISTRY } from "./registry";
-import { FREE_GAME_IDS, isProGame, pickableGameIds } from "./tiers";
-import { getStats, installBrowserDriver, isPro, listen, pendingGame, recordResult, requestHide } from "./bridge";
+import { getStats, installBrowserDriver, listen, pendingGame, recordResult, requestHide } from "./bridge";
 import { installDevBar } from "./devbar";
 import { renderStats } from "./stats-view";
 import type { ShowPayload } from "./types";
@@ -33,13 +31,9 @@ let starting: Promise<void> | null = null;
 
 const gameTabs = installGameTabs(
   tabsMount,
-  async () => pickableGameIds(await isPro()),
+  async () => GAME_IDS,
   (gameId) => void switchGame(gameId),
 );
-
-async function getPickableIds(): Promise<readonly string[]> {
-  return pickableGameIds(await isPro());
-}
 
 /** Save a partial score before leaving a game (tab switch or dismiss). */
 async function recordPartialIfAny(): Promise<void> {
@@ -62,7 +56,7 @@ async function switchGame(gameId: string): Promise<void> {
 
 async function cycleGame(direction: 1 | -1): Promise<void> {
   if (showingStats || !scorecard.hidden) return;
-  const ids = await getPickableIds();
+  const ids = GAME_IDS;
   if (ids.length === 0) return;
   const idx = Math.max(0, ids.indexOf(currentGameId ?? ids[0]));
   const next = ids[(idx + direction + ids.length) % ids.length];
@@ -82,13 +76,6 @@ async function showStats(): Promise<void> {
 }
 
 async function startGame(gameId: string): Promise<void> {
-  const pro = await isPro();
-  if (isProGame(gameId) && !pro) {
-    gameId =
-      chooseExcluding(FREE_GAME_IDS, null, Math.floor(Math.random() * 0x1_0000_0000)) ??
-      FREE_GAME_IDS[0];
-  }
-
   const seq = ++startSeq;
   if (starting) await starting;
   teardown();
@@ -129,10 +116,10 @@ async function startGame(gameId: string): Promise<void> {
   if (starting === run) starting = null;
 }
 
-/** Claude finished: stop the run, show the result, then get out of the way. */
+/** The agent finished: stop the run, show the result, then get out of the way. */
 async function finishAndHide(): Promise<void> {
   if (starting) await starting;
-  // Nothing to score if the user was reading their stats when Claude finished.
+  // Nothing to score if the user was reading their stats when the agent finished.
   if (!current || showingStats) {
     await requestHide();
     return;
@@ -193,7 +180,7 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-void isPro().then(() => void gameTabs.refresh());
+void gameTabs.refresh();
 
 void listen<ShowPayload>("game:show", (payload) => {
   void startGame(payload.gameId);

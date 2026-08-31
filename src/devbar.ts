@@ -1,7 +1,6 @@
 import type { BrowserDriver } from "./bridge";
 import { getStats } from "./bridge";
 import { REGISTRY } from "./registry";
-import { isProGame } from "./tiers";
 
 /**
  * Dev-only control bar, shown when the page runs in a plain browser instead of
@@ -27,14 +26,13 @@ export function installDevBar(driver: BrowserDriver | null, onStats: () => void)
   select.add(random);
   for (const id of driver.games) {
     const game = REGISTRY[id]();
-    const suffix = isProGame(id) ? " · Pro" : "";
-    select.add(new Option(`${game.label}${suffix}`, id));
+    select.add(new Option(game.label, id));
   }
 
   const show = button("Show", "Same as UserPromptSubmit", () => {
     driver.show(select.value || undefined);
   });
-  const stop = button("Claude done", "Same as Stop — freeze, score card, hide", () => {
+  const stop = button("Agent done", "Same as Stop — freeze, score card, hide", () => {
     driver.stop();
   });
   const hide = button("Hide", "Dismiss without a score card", () => {
@@ -42,7 +40,7 @@ export function installDevBar(driver: BrowserDriver | null, onStats: () => void)
   });
   const stats = button("Stats", "Same as the tray's Show stats", onStats);
   const reset = button("Reset stats", "Clear local bests", () => {
-    localStorage.removeItem("claudegame.stats");
+    localStorage.removeItem("agentarcade.stats");
     void refreshBests();
   });
 
@@ -64,22 +62,13 @@ export function installDevBar(driver: BrowserDriver | null, onStats: () => void)
   // "let me look at this one", not "let me configure then press go".
   select.addEventListener("change", () => driver.show(select.value || undefined));
 
-  const proToggle = button("Pro (dev)", "Toggle Pro tier in browser mode (localStorage)", () => {
-    const on = localStorage.getItem("claudegame.pro") === "1";
-    localStorage.setItem("claudegame.pro", on ? "0" : "1");
-    proToggle.textContent = on ? "Pro (dev)" : "Pro ✓";
-  });
-  if (localStorage.getItem("claudegame.pro") === "1") {
-    proToggle.textContent = "Pro ✓";
-  }
-
-  bar.append(tag, select, show, stop, hide, stats, reset, proToggle, bests);
+  bar.append(tag, select, show, stop, hide, stats, reset, bests);
   document.body.appendChild(bar);
   document.body.classList.add("has-devbar");
 
   void refreshBests();
   // The score card writes stats on its way out; pick that up a beat later.
-  window.addEventListener("claudegame:recorded", () => void refreshBests());
+  window.addEventListener("agentarcade:recorded", () => void refreshBests());
 }
 
 function button(label: string, title: string, onClick: () => void): HTMLButtonElement {

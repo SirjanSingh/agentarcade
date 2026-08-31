@@ -4,11 +4,10 @@
  *
  * The fallback is not decoration: it is how the games get exercised without a
  * Rust toolchain. In browser mode, stats live in localStorage and
- * `window.claudegame` drives the same events Rust would emit.
+ * `window.agentarcade` drives the same events Rust would emit.
  */
 
 import { chooseExcluding } from "./picker";
-import { isProGame, pickableGameIds } from "./tiers";
 import { STATS_VERSION, type GameStats } from "./types";
 
 /** Keep in step with RECENT_LIMIT in src-tauri/src/stats.rs. */
@@ -38,22 +37,12 @@ function emitLocal(event: string, payload: unknown): void {
   for (const handler of browserHandlers.get(event) ?? []) handler(payload);
 }
 
-async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
   return tauriInvoke<T>(cmd, args);
 }
 
-const LOCAL_STATS_KEY = "claudegame.stats";
-const LOCAL_PRO_KEY = "claudegame.pro";
-
-function isProLocal(): boolean {
-  return localStorage.getItem(LOCAL_PRO_KEY) === "1";
-}
-
-export async function isPro(): Promise<boolean> {
-  if (isTauri) return invoke<boolean>("is_pro");
-  return isProLocal();
-}
+const LOCAL_STATS_KEY = "agentarcade.stats";
 
 function emptyStats(): GameStats {
   return {
@@ -120,7 +109,7 @@ export async function recordResult(
   });
   stats.recent = stats.recent.slice(0, RECENT_LIMIT);
   localStorage.setItem(LOCAL_STATS_KEY, JSON.stringify(stats));
-  window.dispatchEvent(new CustomEvent("claudegame:recorded"));
+  window.dispatchEvent(new CustomEvent("agentarcade:recorded"));
 }
 
 /**
@@ -154,7 +143,7 @@ export interface BrowserDriver {
 
 /**
  * Browser-mode driver. Lets a human (or a Playwright script) exercise the exact
- * event sequence Rust produces: claudegame.show("snake") then claudegame.stop().
+ * event sequence Rust produces: agentarcade.show("snake") then agentarcade.stop().
  */
 export function installBrowserDriver(allGameIds: readonly string[]): BrowserDriver | null {
   if (isTauri) return null;
@@ -162,23 +151,17 @@ export function installBrowserDriver(allGameIds: readonly string[]): BrowserDriv
   const driver: BrowserDriver = {
     games: allGameIds,
     show: (gameId?: string) => {
-      const pro = isProLocal();
-      const pickable = pickableGameIds(pro);
-      let picked = gameId;
-      if (picked && isProGame(picked) && !pro) {
-        picked = undefined;
-      }
-      picked =
-        picked ??
-        chooseExcluding(pickable, lastGameId, Math.floor(Math.random() * 0x1_0000_0000)) ??
-        pickable[0];
+      const picked =
+        gameId ??
+        chooseExcluding(allGameIds, lastGameId, Math.floor(Math.random() * 0x1_0000_0000)) ??
+        allGameIds[0];
       lastGameId = picked;
       emitLocal("game:show", { gameId: picked });
     },
     stop: () => emitLocal("game:freeze", null),
     hide: () => emitLocal("game:hide", null),
   };
-  (window as unknown as { claudegame: BrowserDriver }).claudegame = driver;
+  (window as unknown as { agentarcade: BrowserDriver }).agentarcade = driver;
   return driver;
 }
 

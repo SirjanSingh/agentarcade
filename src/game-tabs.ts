@@ -1,5 +1,4 @@
 import { REGISTRY } from "./registry";
-import { isProGame } from "./tiers";
 
 export interface GameTabs {
   refresh(): Promise<void>;
@@ -7,12 +6,12 @@ export interface GameTabs {
 }
 
 /**
- * Tab strip for switching games while Claude is thinking. Hidden on the stats
+ * Tab strip for switching games while the agent is thinking. Hidden on the stats
  * screen; the active tab tracks whichever game is mounted in the stage.
  */
 export function installGameTabs(
   container: HTMLElement,
-  getPickableIds: () => Promise<readonly string[]>,
+  getGameIds: () => Promise<readonly string[]>,
   onSelect: (gameId: string) => void,
 ): GameTabs {
   const tabs = document.createElement("nav");
@@ -34,7 +33,7 @@ export function installGameTabs(
   }
 
   async function refresh(): Promise<void> {
-    const ids = await getPickableIds();
+    const ids = await getGameIds();
     tabs.replaceChildren();
     buttons.clear();
 
@@ -45,7 +44,6 @@ export function installGameTabs(
       btn.role = "tab";
       btn.dataset.gameId = id;
       btn.textContent = game.label;
-      if (isProGame(id)) btn.classList.add("pro");
       btn.addEventListener("click", () => onSelect(id));
       tabs.appendChild(btn);
       buttons.set(id, btn);

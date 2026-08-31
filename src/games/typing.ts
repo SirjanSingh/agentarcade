@@ -1,4 +1,4 @@
-import type { GameApi, GameModule } from "../../game";
+import type { GameApi, GameModule } from "../game";
 
 const RUN_SECONDS = 30;
 

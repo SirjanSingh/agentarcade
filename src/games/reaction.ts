@@ -1,4 +1,4 @@
-import type { GameApi, GameModule } from "../../game";
+import type { GameApi, GameModule } from "../game";
 
 const MIN_WAIT_MS = 1200;
 const MAX_WAIT_MS = 4200;

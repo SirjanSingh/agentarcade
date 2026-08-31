@@ -1,4 +1,4 @@
-import type { GameApi, GameModule } from "../../game";
+import type { GameApi, GameModule } from "../game";
 
 /**
  * Indiana Jones endless runner, Claude-flavoured. You flee a rolling Anthropic

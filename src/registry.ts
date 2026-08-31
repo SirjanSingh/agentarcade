@@ -1,17 +1,30 @@
 import type { GameFactory } from "./game";
-import { FREE_REGISTRY } from "./games/free";
-import { PRO_REGISTRY } from "./games/pro";
+import { createAim } from "./games/aim";
+import { createBoulder } from "./games/boulder";
+import { createGradient } from "./games/gradient";
+import { createMetronome } from "./games/metronome";
+import { createReaction } from "./games/reaction";
+import { createSnake } from "./games/snake";
+import { createTyping } from "./games/typing";
+import { createUntangle } from "./games/untangle";
 
 /**
- * Every game module the app knows about. Rust picks an id from tiers.rs —
- * keep game ids in sync when adding a game.
+ * Every game the app knows about. There is no free/paid split: all of these
+ * ship to everyone.
+ *
+ * Adding a game is one new file in src/games/ implementing GameModule, one line
+ * here, and one id in src-tauri/src/logic/games.rs. CI fails if those last two
+ * drift apart — see scripts/check-game-ids.mjs.
  */
 export const REGISTRY: Record<string, GameFactory> = {
-  ...FREE_REGISTRY,
-  ...PRO_REGISTRY,
+  snake: createSnake,
+  typing: createTyping,
+  aim: createAim,
+  reaction: createReaction,
+  gradient: createGradient,
+  metronome: createMetronome,
+  untangle: createUntangle,
+  boulder: createBoulder,
 };
 
-export const GAME_IDS = Object.keys(REGISTRY);
-
-export { FREE_GAME_IDS, PRO_GAME_IDS, isProGame, pickableGameIds } from "./tiers";
-export { FREE_REGISTRY, PRO_REGISTRY };
+export const GAME_IDS: readonly string[] = Object.keys(REGISTRY);
