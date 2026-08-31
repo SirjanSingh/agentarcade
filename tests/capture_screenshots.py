@@ -199,5 +199,21 @@ with sync_playwright() as p:
     shot(page, "stats")
     page.close()
 
+    # ---- boulder: mid-run, mid-jump, with a token coming at you.
+    # Space starts the run and also jumps, so the first press is the start.
+    # Shot on the 5th jump: by then the ground is scrolling and an obstacle is
+    # on screen, and it still reads as running rather than as the game-over card.
+    page = fresh()
+    page.select_option("#devbar-game", "boulder")
+    page.wait_for_selector("canvas", timeout=3000)
+    page.evaluate(HIDE_DEVBAR)
+    page.keyboard.press(" ")
+    for _ in range(5):
+        page.wait_for_timeout(600)
+        page.keyboard.press(" ")
+    page.wait_for_timeout(140)
+    shot(page, "boulder")
+    page.close()
+
     browser.close()
 print("\nall screenshots in", OUT)
