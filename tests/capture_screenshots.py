@@ -11,7 +11,7 @@ import time
 
 from playwright.sync_api import sync_playwright
 
-URL = os.environ.get("CLAUDEGAME_URL", "http://localhost:5183")
+URL = os.environ.get("AGENTARCADE_URL", "http://localhost:5183")
 OUT = pathlib.Path(__file__).parent.parent / "docs" / "screenshots"
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -168,7 +168,7 @@ with sync_playwright() as p:
 
     # ---- stats: needs a history, so play a handful of quick runs first
     page = fresh()
-    page.evaluate("localStorage.removeItem('claudegame.stats')")
+    page.evaluate("localStorage.removeItem('agentarcade.stats')")
     for game, plays in (("reaction", 3), ("metronome", 2), ("aim", 2)):
         for _ in range(plays):
             page.select_option("#devbar-game", game)

@@ -3,25 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>claudegame</title>
+    <title>agentarcade</title>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <div id="app">
       <header id="titlebar" data-tauri-drag-region>
         <span class="dot" aria-hidden="true"></span>
-        <span id="game-label">claudegame</span>
+        <span id="game-label">agentarcade</span>
         <span id="hint">Tab switch · Esc dismiss</span>
       </header>
       <div id="game-tabs-mount"></div>
       <main id="stage"></main>
       <footer id="statusbar">
         <span id="best"></span>
-        <span id="waiting">Claude is thinking…</span>
+        <span id="waiting">Your agent is thinking…</span>
       </footer>
       <div id="scorecard" hidden>
         <div class="card">
-          <p class="headline">Claude's done</p>
+          <p class="headline">Agent's done</p>
           <p class="score"><span id="final-score">—</span></p>
           <p class="sub" id="final-sub"></p>
         </div>

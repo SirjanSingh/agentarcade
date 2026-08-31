@@ -61,12 +61,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          releaseName: claudegame ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          releaseName: agentarcade ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseBody: |
-            See the [README](https://github.com/SirjanSingh/claudegame#install-on-windows-recommended) for setup.
+            See the [README](https://github.com/SirjanSingh/agentarcade#install-on-windows-recommended) for setup.
 
             **macOS (unsigned):** After opening the `.dmg`, if macOS blocks the app, right-click → Open once, or run:
-            `xattr -cr /Applications/claudegame.app`
+            `xattr -cr /Applications/agentarcade.app`
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

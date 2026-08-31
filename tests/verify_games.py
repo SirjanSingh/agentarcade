@@ -1,8 +1,8 @@
 """Exercise the three games in a real browser against the Vite dev server.
 
 Drives the exact event sequence Rust will emit:
-    claudegame.show(id)   ->  game:show
-    claudegame.stop()     ->  game:freeze  (Claude finished)
+    agentarcade.show(id)   ->  game:show
+    agentarcade.stop()     ->  game:freeze  (Claude finished)
 and checks the score card, score recording and teardown.
 """
 
@@ -12,7 +12,7 @@ import sys
 import time
 from playwright.sync_api import sync_playwright, expect
 
-URL = os.environ.get("CLAUDEGAME_URL", "http://localhost:5183")
+URL = os.environ.get("AGENTARCADE_URL", "http://localhost:5183")
 SHOT = str(pathlib.Path(__file__).parent / "screenshots")
 pathlib.Path(SHOT).mkdir(exist_ok=True)
 
@@ -32,13 +32,13 @@ with sync_playwright() as p:
     page.on("console", lambda m: errors.append(f"console.{m.type}: {m.text}") if m.type == "error" else None)
 
     page.goto(URL, wait_until="networkidle")
-    check("page loads", page.title() == "claudegame", page.title())
-    check("browser driver installed", page.evaluate("typeof window.claudegame === 'object'"))
-    check("registry exposes every game", page.evaluate("window.claudegame.games").__len__() == 8,
-          str(page.evaluate("window.claudegame.games")))
+    check("page loads", page.title() == "agentarcade", page.title())
+    check("browser driver installed", page.evaluate("typeof window.agentarcade === 'object'"))
+    check("registry exposes every game", page.evaluate("window.agentarcade.games").__len__() == 8,
+          str(page.evaluate("window.agentarcade.games")))
 
     # ---------------- snake ----------------
-    page.evaluate("window.claudegame.show('snake')")
+    page.evaluate("window.agentarcade.show('snake')")
     page.wait_for_selector("canvas.board", timeout=3000)
     check("snake: label", page.inner_text("#game-label") == "Snake")
 
@@ -57,7 +57,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(400)
     page.screenshot(path=f"{SHOT}/shot_snake.png")
 
-    page.evaluate("window.claudegame.stop()")
+    page.evaluate("window.agentarcade.stop()")
     page.wait_for_timeout(120)
     check("snake: scorecard shown on stop", page.is_visible("#scorecard"))
     frozen_a = canvas_hash()
@@ -72,7 +72,7 @@ with sync_playwright() as p:
     check("snake: scorecard hidden after teardown", not page.is_visible("#scorecard"))
 
     # ---------------- reaction ----------------
-    page.evaluate("window.claudegame.show('reaction')")
+    page.evaluate("window.agentarcade.show('reaction')")
     page.wait_for_selector(".reaction-pad", timeout=3000)
     check("reaction: label", page.inner_text("#game-label") == "Reaction")
     check("reaction: starts idle", page.get_attribute(".reaction-pad", "data-phase") == "idle")
@@ -97,18 +97,18 @@ with sync_playwright() as p:
     check("reaction: reports a time", headline.endswith("ms"), headline)
     page.screenshot(path=f"{SHOT}/shot_reaction.png")
 
-    page.evaluate("window.claudegame.stop()")
+    page.evaluate("window.agentarcade.stop()")
     page.wait_for_timeout(150)
     score_txt = page.inner_text("#final-score")
     check("reaction: scorecard carries the ms score", score_txt.endswith("ms"), score_txt)
     page.wait_for_timeout(1700)
 
-    stats = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats'))")
+    stats = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats'))")
     check("reaction: result persisted", stats["games"].get("reaction", {}).get("plays") == 1, str(stats.get("games")))
     check("reaction: best recorded", isinstance(stats["games"]["reaction"]["best"], (int, float)))
 
     # ---------------- typing ----------------
-    page.evaluate("window.claudegame.show('typing')")
+    page.evaluate("window.agentarcade.show('typing')")
     page.wait_for_selector(".typing", timeout=3000)
     check("typing: label", page.inner_text("#game-label") == "Typing")
     check("typing: prompt before first key", "start typing" in page.inner_text(".typing-meta"))
@@ -124,7 +124,7 @@ with sync_playwright() as p:
           page.evaluate("document.querySelector('.typing-stream .word.active').textContent") not in typed_words[:1])
     page.screenshot(path=f"{SHOT}/shot_typing.png")
 
-    page.evaluate("window.claudegame.stop()")
+    page.evaluate("window.agentarcade.stop()")
     page.wait_for_timeout(150)
     score_txt = page.inner_text("#final-score")
     sub_txt = page.inner_text("#final-sub")
@@ -136,20 +136,20 @@ with sync_playwright() as p:
 
     # A run too short to measure must record nothing rather than a bogus 0 wpm
     # that would install itself as a permanent personal best.
-    before = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats')).games.typing.plays")
-    page.evaluate("window.claudegame.show('typing')")
+    before = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats')).games.typing.plays")
+    page.evaluate("window.agentarcade.show('typing')")
     page.wait_for_selector(".typing", timeout=3000)
     page.keyboard.type("time", delay=5)
-    page.evaluate("window.claudegame.stop()")
+    page.evaluate("window.agentarcade.stop()")
     page.wait_for_timeout(150)
     check("typing: sub-second run scores nothing",
           page.inner_text("#final-score") == "—", page.inner_text("#final-score"))
     page.wait_for_timeout(1700)
-    after = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats')).games.typing.plays")
+    after = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats')).games.typing.plays")
     check("typing: sub-second run not persisted", before == after, f"{before} -> {after}")
 
     # ---------------- Esc dismissal ----------------
-    page.evaluate("window.claudegame.show('reaction')")
+    page.evaluate("window.agentarcade.show('reaction')")
     page.wait_for_selector(".reaction-pad", timeout=3000)
     page.click(".reaction-pad")
     deadline = time.time() + 6
@@ -161,11 +161,11 @@ with sync_playwright() as p:
     page.keyboard.press("Escape")
     page.wait_for_timeout(250)
     check("esc: tears the stage down", page.evaluate("document.getElementById('stage').children.length") == 0)
-    stats = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats'))")
+    stats = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats'))")
     check("esc: run still recorded", stats["games"]["reaction"]["plays"] == 2, str(stats["games"]["reaction"]))
 
     # ---------------- personal best surfaces on the next run ----------------
-    page.evaluate("window.claudegame.show('typing')")
+    page.evaluate("window.agentarcade.show('typing')")
     page.wait_for_selector(".typing", timeout=3000)
     best_line = page.inner_text("#best")
     check("best score surfaces in status bar", best_line.startswith("best ") and "wpm" in best_line, best_line)
@@ -197,14 +197,14 @@ with sync_playwright() as p:
           ("Snake", "Reaction", "Typing", "Gradient", "Metronome", "Aim", "Untangle", "Boulder"),
           page.inner_text("#game-label"))
 
-    page.evaluate("window.claudegame.hide()")
+    page.evaluate("window.agentarcade.hide()")
     page.wait_for_timeout(200)
     first = page.evaluate("""() => {
-      window.claudegame.show();
+      window.agentarcade.show();
       return document.getElementById('game-label').textContent;
     }""")
     second = page.evaluate("""() => {
-      window.claudegame.show();
+      window.agentarcade.show();
       return document.getElementById('game-label').textContent;
     }""")
     check("random show: no back-to-back repeat", first != second, f"{first} -> {second}")
@@ -215,7 +215,7 @@ with sync_playwright() as p:
     page.click("#devbar >> text=Reset stats")
     page.wait_for_timeout(200)
     check("devbar: reset clears bests",
-          page.evaluate("localStorage.getItem('claudegame.stats')") is None)
+          page.evaluate("localStorage.getItem('agentarcade.stats')") is None)
     check("devbar: bests readout updates", "no bests yet" in page.inner_text(".devbar-bests"),
           page.inner_text(".devbar-bests"))
 

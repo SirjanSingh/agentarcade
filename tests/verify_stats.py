@@ -5,7 +5,7 @@ import pathlib
 import sys
 from playwright.sync_api import sync_playwright
 
-URL = os.environ.get("CLAUDEGAME_URL", "http://localhost:5183")
+URL = os.environ.get("AGENTARCADE_URL", "http://localhost:5183")
 SHOT = str(pathlib.Path(__file__).parent / "screenshots")
 pathlib.Path(SHOT).mkdir(exist_ok=True)
 
@@ -23,7 +23,7 @@ with sync_playwright() as p:
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.goto(URL, wait_until="networkidle")
-    page.evaluate("localStorage.removeItem('claudegame.stats')")
+    page.evaluate("localStorage.removeItem('agentarcade.stats')")
 
     # Empty state first.
     page.click("#devbar >> text=Stats")
@@ -34,7 +34,7 @@ with sync_playwright() as p:
 
     # A v1 file must upgrade in place, keeping its bests.
     page.evaluate("""
-      localStorage.setItem('claudegame.stats', JSON.stringify({
+      localStorage.setItem('agentarcade.stats', JSON.stringify({
         version: 1,
         games: { snake: { plays: 7, best: 19, total: 54, lastPlayed: '2026-07-01T00:00:00.000Z' } },
         totals: { sessions: 7, secondsPlayed: 300 }
@@ -42,7 +42,7 @@ with sync_playwright() as p:
     """)
     page.click("#devbar >> text=Stats")
     page.wait_for_selector(".stats-row", timeout=3000)
-    upgraded = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats'))")
+    upgraded = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats'))")
     check("stats: v1 bests survive being read", "19" in page.inner_text(".stats-row"),
           page.inner_text(".stats-row").replace("\n", " "))
     check("stats: v1 totals survive", "7 runs" in page.inner_text(".stats-totals"),
@@ -58,7 +58,7 @@ with sync_playwright() as p:
         page.click("#devbar >> text=Claude done")
         page.wait_for_timeout(1900)
 
-    stats = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats'))")
+    stats = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats'))")
     check("schema: version is 2", stats["version"] == 2, str(stats["version"]))
     check("schema: device id minted", isinstance(stats.get("deviceId"), str) and len(stats["deviceId"]) > 8,
           str(stats.get("deviceId")))
@@ -72,7 +72,7 @@ with sync_playwright() as p:
 
     device_before = stats["deviceId"]
     page.reload(wait_until="networkidle")
-    after = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats'))")
+    after = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats'))")
     check("schema: device id is stable across reloads", after["deviceId"] == device_before)
 
     page.click("#devbar >> text=Stats")

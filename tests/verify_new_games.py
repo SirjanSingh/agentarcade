@@ -7,7 +7,7 @@ import sys
 import time
 from playwright.sync_api import sync_playwright
 
-URL = os.environ.get("CLAUDEGAME_URL", "http://localhost:5183")
+URL = os.environ.get("AGENTARCADE_URL", "http://localhost:5183")
 SHOT = str(pathlib.Path(__file__).parent / "screenshots")
 pathlib.Path(SHOT).mkdir(exist_ok=True)
 
@@ -68,7 +68,7 @@ with sync_playwright() as p:
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.goto(URL, wait_until="networkidle")
-    page.evaluate("localStorage.removeItem('claudegame.stats')")
+    page.evaluate("localStorage.removeItem('agentarcade.stats')")
 
     opts = page.evaluate("[...document.querySelectorAll('#devbar-game option')].map(o => o.value)")
     check("registry has all 7 games",
@@ -129,7 +129,7 @@ with sync_playwright() as p:
     card = page.inner_text("#final-score")
     check("metronome: freeze scores in ms", card.endswith("ms"), card)
     page.wait_for_timeout(1700)
-    stats = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats'))")
+    stats = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats'))")
     check("metronome: recorded as lower-is-better",
           stats["games"]["metronome"]["best"] is not None, str(stats["games"].get("metronome")))
 
@@ -236,7 +236,7 @@ with sync_playwright() as p:
     check("snake: a 1.5s run is too short to score",
           page.inner_text("#final-score") == "—", page.inner_text("#final-score"))
     page.wait_for_timeout(1700)
-    stats = page.evaluate("JSON.parse(localStorage.getItem('claudegame.stats'))")
+    stats = page.evaluate("JSON.parse(localStorage.getItem('agentarcade.stats'))")
     check("snake: short run not recorded", "snake" not in stats["games"], str(list(stats["games"])))
 
     page.select_option("#devbar-game", "snake")
