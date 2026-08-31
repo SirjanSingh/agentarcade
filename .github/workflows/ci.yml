@@ -31,8 +31,13 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          # The repo name is part of the key on purpose. tauri-build bakes
+          # absolute paths into target/, and the checkout path contains the
+          # repo name, so a cache restored across a rename points at a
+          # directory that no longer exists and the build script dies on a
+          # missing permissions file. Renaming now busts the cache instead.
+          key: ${{ runner.os }}-cargo-${{ github.event.repository.name }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-${{ github.event.repository.name }}-
 
       # The frontend is not built here: cargo test exercises the Rust logic
       # modules only, and tauri-build does not need dist/ to compile them.
