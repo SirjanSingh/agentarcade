@@ -84,6 +84,27 @@ The **adjacent** category is where the traction is: macOS notch/Dynamic Island p
 know what my agent is doing" more strongly than "I am bored". Worth remembering when writing
 launch copy: the delay and the zero-keypress return are the defensible parts, not the games.
 
+## The release, and the one wart on it
+
+v2.0.0 published after a fourth attempt. The first three failures were the ones above; the
+fourth was subtler. **Re-running a failed workflow reuses the token minted when the original
+run was created**, so flipping `default_workflow_permissions` to `write` had no effect on a
+re-run. A `workflow_dispatch` mints a fresh token and went green immediately.
+
+Assets: Windows NSIS installer **with a valid `.sig`**, Intel and Apple Silicon dmgs, and a
+signed `latest.json`.
+
+**`latest.json` covers Windows only.** The bundle targets were `nsis`, `dmg`, `appimage`,
+and `dmg` produces no updater artifacts: on macOS `createUpdaterArtifacts` works off the
+`app` target, which emits the `.app.tar.gz` and its signature. A Mac user who installs the
+2.0.0 dmg therefore gets nothing from *Check for updates* and has to re-download by hand.
+The `app` target is added as of `7cd38bf`, but that does not retrofit a published manifest.
+
+**Decision left open deliberately:** re-tagging v2.0.0 would fix the manifest, and since the
+repo is private with zero installs it would cost nothing. It also means deleting a published
+tag and release, which is not something to do unsupervised. One command in the morning, or
+let it ride and fix it in v2.0.1.
+
 ## Open
 
 1. **The repo is still private.** Deliberate: the choice was to tag and inspect the release
