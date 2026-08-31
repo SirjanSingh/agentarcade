@@ -11,9 +11,8 @@ your editor.
 for Windows (`.exe`) or macOS (`.dmg`).
 
 <p align="center">
-  <img src="docs/screenshots/scorecard.png" alt="Score card shown when the agent finishes, before the window auto-hides" width="380">
+  <img src="docs/demo.gif" alt="A short prompt is answered and nothing happens. A longer one crosses ten seconds, a snake game appears, and it hides itself the moment the agent finishes." width="760">
 </p>
-<p align="center"><em>Agent finishes, score card, window hides. No keypress.</em></p>
 
 ---
 
