@@ -100,10 +100,21 @@ and `dmg` produces no updater artifacts: on macOS `createUpdaterArtifacts` works
 2.0.0 dmg therefore gets nothing from *Check for updates* and has to re-download by hand.
 The `app` target is added as of `7cd38bf`, but that does not retrofit a published manifest.
 
-**Decision left open deliberately:** re-tagging v2.0.0 would fix the manifest, and since the
-repo is private with zero installs it would cost nothing. It also means deleting a published
-tag and release, which is not something to do unsupervised. One command in the morning, or
-let it ride and fix it in v2.0.1.
+**Resolved by re-tagging.** Release and tag deleted, re-tagged on `ff56793`, rebuilt. Cost
+nothing because the repo is private with zero installs. The published manifest now reads:
+
+```
+darwin-aarch64      sig  agentarcade_aarch64.app.tar.gz
+darwin-x86_64       sig  agentarcade_x64.app.tar.gz
+windows-x86_64      sig  agentarcade_2.0.0_x64-setup.exe
+```
+
+Nine assets, every updater artifact signed. Worth noting the re-tag had to be a real tag
+push, not a workflow re-run, for the token reason above.
+
+**Social preview is gated on going public.** GitHub only exposes the upload for a public
+repo, or a private one that already has an image, so it cannot be done first. The file is
+ready at `docs/social-preview.png` (1280x640, 104 KB against a 1 MB cap).
 
 ## Open
 
