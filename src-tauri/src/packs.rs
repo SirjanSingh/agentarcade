@@ -143,8 +143,12 @@ fn load_one(dir: &Path, id: &str, builtins: &[String], accepted: &[Pack]) -> Res
     let html = dir.join(id).join("game.html");
     let meta = fs::read_to_string(dir.join(id).join("meta.json"))
         .map_err(|err| format!("meta.json could not be read: {err}"))?;
-    let meta: serde_json::Value =
-        serde_json::from_str(&meta).map_err(|err| format!("meta.json is not valid JSON: {err}"))?;
+    // Windows agents reach for PowerShell, whose Out-File and Set-Content write
+    // UTF-8 *with* a byte order mark. serde_json rejects one, and the pack is
+    // then skipped for a reason nobody can see by looking at the file. Strip it
+    // rather than make every generator know this.
+    let meta: serde_json::Value = serde_json::from_str(meta.trim_start_matches('\u{feff}'))
+        .map_err(|err| format!("meta.json is not valid JSON: {err}"))?;
 
     let size = fs::metadata(&html)
         .map_err(|err| format!("game.html could not be read: {err}"))?
@@ -258,6 +262,19 @@ mod tests {
         let dir = temp_dir("badjson");
         write_pack(&dir, "broken", "{ not json", "<canvas>");
         assert!(scan(&dir, &builtins()).is_empty());
+    }
+
+    #[test]
+    fn a_byte_order_mark_does_not_reject_a_pack() {
+        // PowerShell's Out-File writes one by default, so this is the likeliest
+        // way a correctly followed instruction still produces a dead pack.
+        let dir = temp_dir("bom");
+        let with_bom = format!("\u{feff}{}", meta_for("marked"));
+        write_pack(&dir, "marked", &with_bom, "<canvas>");
+
+        let packs = scan(&dir, &builtins());
+        assert_eq!(packs.len(), 1, "a BOM is not a malformed file");
+        assert_eq!(packs[0].id, "marked");
     }
 
     #[test]

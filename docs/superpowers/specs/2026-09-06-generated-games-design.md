@@ -1,6 +1,7 @@
 # Generated games
 
-Status: approved design, not yet planned
+Status: implemented on branch `feat/generated-games`; Isolation corrected against
+what the running app actually does
 Date: 2026-09-06
 
 ## Problem
@@ -136,11 +137,10 @@ the others loading.
 A new `src/games/generated.ts` exports a factory taking a slug and returning a
 `GameModule`:
 
-- `mount()` fetches the pack's HTML through a Tauri command exposed by
-  `packs.rs` (the webview has no filesystem access of its own), prepends the
-  CSP meta described below, and sets it as the `srcdoc` of an
-  `<iframe sandbox="allow-scripts">`. `srcdoc` rather than a file URL, so the
-  frame has no origin to inherit. It listens for
+- `mount()` points an `<iframe sandbox="allow-scripts">` at
+  `agpack://localhost/<id>/game.html`; the Rust protocol handler reads the file
+  and attaches the frame's CSP as a response header (see Isolation). No fetch
+  on this side, so `mount()` stays synchronous. It listens for
   `{ type: "agentarcade:score", value: number }` from that frame and forwards
   it to `api.reportScore`.
 - `freeze()` posts `{ type: "agentarcade:freeze" }` into the frame and stops
@@ -170,19 +170,35 @@ read and we have one place to change:
 
 ## Isolation
 
-Three layers, because the file is model-written and lives on disk where
-anything else can edit it:
+**Corrected after implementation.** This section originally specified a
+`srcdoc` iframe carrying a prepended `<meta>` CSP. That does not work: a
+`srcdoc` document inherits the embedder's CSP and an inner `<meta>` can only
+tighten it, so with the app's `default-src 'self'` no generated game's inline
+script would run at all. `blob:` and `data:` inherit the same way. What ships
+instead:
 
-1. `sandbox="allow-scripts"` with no `allow-same-origin`. Opaque origin, so no
-   Tauri bridge, no parent DOM, no storage.
-2. The app prepends
+1. The pack is served over its own URI scheme, `agpack:`, registered in Rust.
+   The frame gets its own origin, and Rust sets
    `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:`
-   as a CSP meta before the pack's own HTML. A generated `fetch()` fails even
-   if the model writes one, so "nothing leaves your machine" stays true.
-3. Messages are matched against the current frame's `contentWindow`; anything
-   from another source is dropped.
+   as a real **response header**. The app's own CSP is untouched apart from a
+   `frame-src` entry. As a side benefit the iframe points at a URL, so `mount()`
+   stays synchronous as `GameModule` requires.
+2. `sandbox="allow-scripts"` with no `allow-same-origin`. Opaque origin, so no
+   parent DOM and no storage.
+3. Messages are matched against the frame's own `contentWindow`; anything from
+   another source is dropped. Origin cannot be used for this — an opaque origin
+   reports as `null`.
 
-The validation rules above are the fourth layer, applied before any of this.
+The validation rules above are the layer before all of these.
+
+**Measured, not assumed.** A probe pack run inside the real app reported:
+`localStorage` throws, the parent document is unreachable, `fetch` fails. It
+also found that Tauri injects `__TAURI_INTERNALS__` into every frame, so the
+IPC object *is* visible inside the sandbox and cannot be removed from the
+parent. It is inert: calling `set_show_delay` from the frame rejected, and
+`prefs.json` was unchanged, so the command did not execute — capabilities are
+granted to local origins only and none lists a `remote.urls` entry. If one ever
+does, this conclusion has to be rechecked.
 
 ## Error handling
 

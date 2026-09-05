@@ -9,10 +9,17 @@ import type { Pack } from "../types";
  * from.
  *
  * The game runs in an iframe with `allow-scripts` and deliberately *without*
- * `allow-same-origin`, which leaves it on an opaque origin: no Tauri bridge,
- * no reach into this document, no storage. Rust serves it its own
- * Content-Security-Policy on top of that, so a generated `fetch()` fails even
- * if the model writes one. See src-tauri/src/packs.rs.
+ * `allow-same-origin`, which leaves it on an opaque origin: no reach into this
+ * document, no storage. Rust serves it its own Content-Security-Policy on top
+ * of that, so a generated `fetch()` fails even if the model writes one. See
+ * src-tauri/src/packs.rs.
+ *
+ * Tauri injects `__TAURI_INTERNALS__` into every frame, so it is visible from
+ * in there and cannot be deleted from this side. It is inert: a command call
+ * from that frame is rejected and never executes, because capabilities are not
+ * granted to a remote origin. Verified by probing from inside the sandbox
+ * rather than assumed — if a capability is ever given a `remote.urls` entry,
+ * that reasoning needs rechecking.
  *
  * The only channel is postMessage, in two directions and two message types.
  */

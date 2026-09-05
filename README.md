@@ -87,10 +87,13 @@ app reads:
 
 **A generated game cannot reach the rest of the app.** It runs in an iframe
 sandboxed with `allow-scripts` and without `allow-same-origin`, so it has an
-opaque origin: no Tauri bridge, no access to this page, no storage. It is
-served over its own URI scheme with `default-src 'none'`, so a `fetch()` in
-generated code fails even if the model writes one. The only thing that crosses
-the boundary is a score, over `postMessage`.
+opaque origin, and it is served over its own URI scheme with `default-src
+'none'`. Measured from inside that frame: `localStorage` throws, the parent
+document is unreachable, and `fetch` fails. Tauri injects its IPC object into
+every frame, so the object is visible in there — but a command call from that
+frame is refused and does not run, because no capability grants a remote
+origin. The only thing that crosses the boundary is a score, over
+`postMessage`.
 
 A pack with a malformed `meta.json`, a name outside `a-z0-9-`, or a `game.html`
 over 256 KB is skipped at startup and never enters the rotation. One bad pack
@@ -266,6 +269,10 @@ npm run check:game-ids # the TS and Rust game lists must agree
 npm run tauri:dev      # the real app, with the dev-server CSP
 npm run tauri build    # installer, into src-tauri/target/release/bundle/
 ```
+
+`tauri:dev` applies `src-tauri/tauri.dev.conf.json`, which widens the CSP to
+reach the Vite dev server. The base `tauri.conf.json` used by `tauri build` and
+by CI releases has no localhost in its CSP.
 
 Browser driver: `agentarcade.show("snake")` then `agentarcade.stop()`.
 
