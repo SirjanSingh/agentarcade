@@ -4,6 +4,7 @@
 mod atomic_write;
 mod diagnostics;
 mod logic;
+mod maker;
 mod packs;
 mod prefs;
 mod server;
@@ -44,6 +45,8 @@ pub struct AppState {
     /// Where generated game packs live. Scanned rather than cached, so a game
     /// the user just asked their agent for turns up without a restart.
     pub packs_dir: PathBuf,
+    /// Where the game-maker skill is installed, if the user asks for it.
+    pub skill_dir: PathBuf,
     pub hook_url: String,
     pub port: u16,
     /// Whether the hook endpoint actually bound. Without this a port conflict
@@ -207,6 +210,22 @@ fn delete_pack(state: State<AppState>, id: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Whether the game-maker skill is installed, absent, or blocked by a folder
+/// of the same name that we did not write.
+#[tauri::command]
+fn maker_skill_status(state: State<AppState>) -> maker::SkillStatus {
+    maker::status(&state.skill_dir)
+}
+
+#[tauri::command]
+fn set_maker_skill_installed(state: State<AppState>, installed: bool) -> Result<(), String> {
+    if installed {
+        maker::install(&state.skill_dir)
+    } else {
+        maker::remove(&state.skill_dir)
+    }
+}
+
 #[tauri::command]
 fn set_show_delay(state: State<AppState>, secs: u64) {
     {
@@ -351,7 +370,9 @@ fn main() {
             play_now,
             open_settings,
             list_packs,
-            delete_pack
+            delete_pack,
+            maker_skill_status,
+            set_maker_skill_installed
         ])
         // Generated games are served from here rather than inlined into the
         // page. A `srcdoc` or `blob:` frame inherits this window's CSP, which
@@ -411,6 +432,7 @@ fn main() {
             let prefs_path = data_dir.join("prefs.json");
             let packs_dir = data_dir.join("games");
             let settings_path = home.join(".claude").join("settings.json");
+            let skill_dir = home.join(".claude").join("skills").join(maker::SKILL_DIR);
 
             let stats = Stats::load(&stats_path);
             let prefs = Prefs::load(&prefs_path);
@@ -440,6 +462,7 @@ fn main() {
                 prefs_path,
                 settings_path,
                 packs_dir,
+                skill_dir,
                 hook_url: hook_url.clone(),
                 port,
                 server_status: Mutex::new(ServerStatus::Starting),

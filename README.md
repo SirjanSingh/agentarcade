@@ -68,6 +68,43 @@ or anything about you, and it never leaves the file.
 
 ---
 
+## Games you make yourself
+
+Type `/agentarcade:make dodge falling semicolons` in your agent's terminal and
+that game joins the rotation about ten seconds later. Install the command from
+the Games tab in settings — it writes a skill into `~/.claude/skills/`, and
+refuses if a folder of that name is already there that it did not write.
+
+**agentarcade does not generate anything.** It has no model and no network. The
+game is written by the coding agent you are already running, into a folder the
+app reads:
+
+```
+<app data>/games/semicolon-dodge/
+  game.html    one self-contained file
+  meta.json    id, label, score unit
+```
+
+**A generated game cannot reach the rest of the app.** It runs in an iframe
+sandboxed with `allow-scripts` and without `allow-same-origin`, so it has an
+opaque origin: no Tauri bridge, no access to this page, no storage. It is
+served over its own URI scheme with `default-src 'none'`, so a `fetch()` in
+generated code fails even if the model writes one. The only thing that crosses
+the boundary is a score, over `postMessage`.
+
+A pack with a malformed `meta.json`, a name outside `a-z0-9-`, or a `game.html`
+over 256 KB is skipped at startup and never enters the rotation. One bad pack
+never stops the others loading.
+
+**There is no way to install someone else's game.** Packs are not importable
+and there is no gallery — a shareable file of executable JavaScript is a
+distribution channel for malware. Games are shared by opening a pull request,
+where a person reads them first.
+
+Delete a game, or switch it off, from the Games and Options tabs.
+
+---
+
 ## Install on Windows
 
 Needs Windows 10 or 11 and the

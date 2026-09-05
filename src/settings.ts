@@ -9,7 +9,7 @@
 
 import { invoke, listen } from "./bridge";
 
-type ViewName = "welcome" | "status" | "options";
+type ViewName = "welcome" | "status" | "options" | "games";
 
 interface ServerStatus {
   state: "starting" | "listening" | "failed";
@@ -34,6 +34,20 @@ interface Diagnostics {
   showDelaySecs: number;
   paused: boolean;
 }
+
+/** Mirrors Pack in src-tauri/src/packs.rs. */
+interface Pack {
+  id: string;
+  label: string;
+  unit: string;
+  lowerIsBetter: boolean;
+  prompt: string;
+  createdAt: string;
+  url: string;
+}
+
+/** Mirrors SkillStatus in src-tauri/src/maker.rs. */
+type SkillStatus = "absent" | "installed" | "foreign";
 
 interface Prefs {
   showDelaySecs: number;
@@ -87,6 +101,7 @@ async function render(): Promise<void> {
   try {
     if (view === "status") await renderStatus();
     else if (view === "welcome") await renderWelcome();
+    else if (view === "games") await renderGames();
     else await renderOptions();
   } catch (err) {
     panel.replaceChildren(
@@ -304,6 +319,91 @@ async function renderOptions(): Promise<void> {
   );
 }
 
+/* -- Games ------------------------------------------------------------ */
+
+/**
+ * Generated games: the ones the user's own agent wrote. The app cannot make
+ * these itself — it has no model and no network — so this view is mostly about
+ * getting the command installed and then managing what came out of it.
+ */
+async function renderGames(): Promise<void> {
+  const [packs, skill] = await Promise.all([
+    invoke<Pack[]>("list_packs"),
+    invoke<SkillStatus>("maker_skill_status"),
+  ]);
+
+  const parts: (Node | string)[] = [
+    el("h1", {}, "Games you made"),
+    el("h2", {}, "the game-maker command"),
+  ];
+
+  if (skill === "foreign") {
+    parts.push(
+      el(
+        "p",
+        { class: "muted" },
+        "A skill folder called agentarcade-make already exists and agentarcade did not write it, so it has been left alone. Rename or remove it yourself if you want the command installed here.",
+      ),
+    );
+  } else {
+    const installed = skill === "installed";
+    const toggle = el(
+      "button",
+      { class: "action", type: "button" },
+      installed ? "Remove the command" : "Install the command",
+    );
+    toggle.addEventListener("click", async () => {
+      toggle.disabled = true;
+      try {
+        await invoke("set_maker_skill_installed", { installed: !installed });
+      } catch (err) {
+        parts.length = 0;
+        panel.replaceChildren(el("p", { class: "muted" }, String(err)));
+        return;
+      }
+      await render();
+    });
+    parts.push(
+      el(
+        "p",
+        { class: "muted" },
+        installed
+          ? "Type /agentarcade:make and what you want to play in your agent's terminal. The game shows up here within ten seconds."
+          : "This writes a skill into ~/.claude/skills/ so your coding agent can write games for you. agentarcade never generates anything itself and never goes online.",
+      ),
+      el("div", { class: "actions" }, toggle),
+    );
+  }
+
+  parts.push(el("h2", {}, "installed games"));
+
+  if (packs.length === 0) {
+    parts.push(
+      el(
+        "p",
+        { class: "muted" },
+        "None yet. Games you generate appear here, and can be switched off in the rotation from Options like any other game.",
+      ),
+    );
+  } else {
+    const rows = el("div", { class: "rows" });
+    for (const pack of packs) {
+      const remove = el("button", { class: "action", type: "button" }, "Delete");
+      remove.addEventListener("click", async () => {
+        remove.disabled = true;
+        await invoke("delete_pack", { id: pack.id });
+        await render();
+      });
+      rows.append(
+        row(pack.label, el("span", { class: "muted" }, pack.prompt), remove),
+      );
+    }
+    parts.push(rows);
+  }
+
+  panel.replaceChildren(...parts);
+}
+
 /* -- Boot -------------------------------------------------------------- */
 
 for (const tab of tabs) {
@@ -313,4 +413,5 @@ for (const tab of tabs) {
 void listen<string>("settings:view", (next) => setView(next as ViewName));
 
 const requested = new URLSearchParams(window.location.search).get("view");
-setView(requested === "welcome" || requested === "options" ? requested : "status");
+const known: ViewName[] = ["welcome", "options", "games"];
+setView(known.includes(requested as ViewName) ? (requested as ViewName) : "status");

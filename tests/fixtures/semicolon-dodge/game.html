@@ -1,0 +1,100 @@
+<meta charset="utf-8">
+<title>Semicolon Dodge</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0e1016; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+<canvas id="c"></canvas>
+<script>
+  // A hand-written stand-in for a generated game. It exists so the pack
+  // loader, the sandbox and the score path can be exercised without asking an
+  // agent to write one first — and so there is a known-good example to compare
+  // a real generation against.
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const ACCENT = '#7dd3a0';
+  const FALL_SPEED = 0.14;
+  const SPAWN_MS = 520;
+  const PLAYER_R = 9;
+
+  let running = true;
+  let raf = 0;
+  let last = performance.now();
+  let sinceSpawn = 0;
+  let score = 0;
+  let falling = [];
+  let playerX = 0;
+
+  function resize() {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+    playerX = Math.min(playerX || canvas.width / 2, canvas.width);
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  addEventListener('pointermove', (e) => { playerX = e.clientX; });
+
+  // The app sends this when the agent finishes. Stop, but leave the last frame
+  // on screen — the score card is drawn over the top of it.
+  addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'agentarcade:freeze') {
+      running = false;
+      cancelAnimationFrame(raf);
+    }
+  });
+
+  function playerY() {
+    return canvas.height - 26;
+  }
+
+  function frame(now) {
+    if (!running) return;
+    const dt = Math.min(now - last, 50);
+    last = now;
+
+    sinceSpawn += dt;
+    if (sinceSpawn >= SPAWN_MS) {
+      sinceSpawn = 0;
+      falling.push({ x: Math.random() * canvas.width, y: -12 });
+    }
+
+    const py = playerY();
+    let hit = false;
+    for (const s of falling) {
+      s.y += FALL_SPEED * dt;
+      const dx = s.x - playerX;
+      const dy = s.y - py;
+      if (dx * dx + dy * dy < (PLAYER_R + 7) * (PLAYER_R + 7)) hit = true;
+    }
+    const before = falling.length;
+    falling = falling.filter((s) => s.y < canvas.height + 20);
+    // Scored per semicolon survived, not per second, so the score measures
+    // play rather than how long the agent took.
+    score += before - falling.length;
+
+    if (hit) {
+      score = Math.max(0, score - 3);
+      falling = [];
+    }
+
+    ctx.fillStyle = '#0e1016';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#5b6178';
+    ctx.font = '16px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    for (const s of falling) ctx.fillText(';', s.x, s.y);
+
+    ctx.fillStyle = ACCENT;
+    ctx.beginPath();
+    ctx.arc(playerX, py, PLAYER_R, 0, Math.PI * 2);
+    ctx.fill();
+
+    parent.postMessage({ type: 'agentarcade:score', value: score }, '*');
+    raf = requestAnimationFrame(frame);
+  }
+
+  raf = requestAnimationFrame(frame);
+</script>
