@@ -4,6 +4,7 @@
 mod atomic_write;
 mod diagnostics;
 mod logic;
+mod packs;
 mod prefs;
 mod server;
 mod stats;
@@ -40,6 +41,9 @@ pub struct AppState {
     pub stats_path: PathBuf,
     pub prefs_path: PathBuf,
     pub settings_path: PathBuf,
+    /// Where generated game packs live. Scanned rather than cached, so a game
+    /// the user just asked their agent for turns up without a restart.
+    pub packs_dir: PathBuf,
     pub hook_url: String,
     pub port: u16,
     /// Whether the hook endpoint actually bound. Without this a port conflict
@@ -137,6 +141,34 @@ fn hide_window(app: AppHandle) {
     hide_now(&app);
 }
 
+/// Built-in game ids plus every generated pack currently on disk.
+///
+/// Rescanned on every call rather than cached. The scan is a handful of small
+/// reads of a directory that holds a few entries, and caching it would mean a
+/// game the user just asked their agent for stayed invisible until the next
+/// launch — which is the one thing this feature must not do.
+fn all_game_ids(state: &AppState) -> Vec<String> {
+    let builtins = games::game_ids();
+    let mut ids = builtins.clone();
+    ids.extend(
+        packs::scan(&state.packs_dir, &builtins)
+            .into_iter()
+            .map(|pack| pack.id),
+    );
+    ids
+}
+
+/// Rebuild the rotation pool from disk. Called after anything that can change
+/// which games exist or which of them are switched on.
+///
+/// Takes no lock of its own for longer than it must: the scan happens before
+/// either mutex is touched, so a slow disk cannot stall a hook event.
+fn refresh_pool(state: &AppState) {
+    let all = all_game_ids(state);
+    let enabled = state.prefs.lock().unwrap().enabled_games(&all);
+    state.tracker.lock().unwrap().set_games(enabled);
+}
+
 /// Asked once at webview boot. Tauri events are not replayed, so a hook that
 /// lands while the webview is still loading would otherwise show an empty
 /// window; this lets the frontend catch up.
@@ -154,8 +186,25 @@ fn get_prefs(state: State<AppState>) -> serde_json::Value {
         "scorecardDurationMs": prefs.scorecard_duration_ms,
         "disabledGames": prefs.disabled_games,
         "firstRunComplete": prefs.first_run_complete,
-        "allGames": games::GAME_IDS,
+        // Generated packs are included so the Options view can switch them off
+        // exactly like a built-in game, with no extra machinery.
+        "allGames": all_game_ids(&state),
     })
+}
+
+/// Every generated pack the app can currently load. The Games view lists these.
+#[tauri::command]
+fn list_packs(state: State<AppState>) -> Vec<packs::Pack> {
+    packs::scan(&state.packs_dir, &games::game_ids())
+}
+
+#[tauri::command]
+fn delete_pack(state: State<AppState>, id: String) -> Result<(), String> {
+    packs::delete(&state.packs_dir, &id)?;
+    // The deleted game may have been in the rotation pool; drop it before the
+    // tracker can pick an id that no longer resolves to anything.
+    refresh_pool(&state);
+    Ok(())
 }
 
 #[tauri::command]
@@ -180,12 +229,8 @@ fn set_game_enabled(state: State<AppState>, game_id: String, enabled: bool) {
         if !enabled {
             prefs.disabled_games.push(game_id);
         }
-        state
-            .tracker
-            .lock()
-            .unwrap()
-            .set_games(prefs.enabled_games(&games::game_ids()));
     }
+    refresh_pool(&state);
     state.save_prefs();
 }
 
@@ -225,6 +270,16 @@ fn play_now(app: AppHandle) {
 #[tauri::command]
 fn open_settings(app: AppHandle, view: Option<String>) {
     window::open_settings(&app, view.as_deref().unwrap_or("status"));
+}
+
+/// What the pack protocol answers with for anything it cannot resolve. No body
+/// and no detail: a miss here is either a deleted game or someone probing, and
+/// neither is owed an explanation.
+fn empty_404() -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(404)
+        .body(Vec::new())
+        .expect("a 404 with an empty body is always well-formed")
 }
 
 fn seed() -> u64 {
@@ -294,8 +349,42 @@ fn main() {
             remove_orphaned_hooks,
             set_hooks_installed,
             play_now,
-            open_settings
+            open_settings,
+            list_packs,
+            delete_pack
         ])
+        // Generated games are served from here rather than inlined into the
+        // page. A `srcdoc` or `blob:` frame inherits this window's CSP, which
+        // forbids inline script, so a generated game simply would not run —
+        // and loosening the main window's script-src to fix that would defeat
+        // the point. Its own scheme gives the frame its own origin and, below,
+        // its own policy, while the app's stays exactly as strict as it is.
+        .register_uri_scheme_protocol(packs::SCHEME, |ctx, request| {
+            let state = ctx.app_handle().state::<AppState>();
+            let response = tauri::http::Response::builder();
+
+            // The id arrives from the webview, so it is validated here even
+            // though the scan that produced it validated it too.
+            let id = request.uri().path().trim_start_matches('/');
+            let id = id.strip_suffix("/game.html").unwrap_or("");
+
+            match packs::html_path(&state.packs_dir, id).and_then(|p| std::fs::read(p).ok()) {
+                Some(bytes) => response
+                    .header(tauri::http::header::CONTENT_TYPE, "text/html; charset=utf-8")
+                    // The layer that keeps "nothing leaves your machine" true.
+                    // A generated fetch() or a remote <script> dies here even
+                    // if the model writes one; the sandbox attribute on the
+                    // iframe cannot express this on its own.
+                    .header(
+                        tauri::http::header::CONTENT_SECURITY_POLICY,
+                        "default-src 'none'; script-src 'unsafe-inline'; \
+                         style-src 'unsafe-inline'; img-src data:",
+                    )
+                    .body(bytes)
+                    .unwrap_or_else(|_| empty_404()),
+                None => empty_404(),
+            }
+        })
         .setup(move |app| {
             let handle = app.handle().clone();
 
@@ -320,12 +409,19 @@ fn main() {
 
             let stats_path = data_dir.join("stats.json");
             let prefs_path = data_dir.join("prefs.json");
+            let packs_dir = data_dir.join("games");
             let settings_path = home.join(".claude").join("settings.json");
 
             let stats = Stats::load(&stats_path);
             let prefs = Prefs::load(&prefs_path);
 
-            let all_games = games::game_ids();
+            let builtins = games::game_ids();
+            let mut all_games = builtins.clone();
+            all_games.extend(
+                packs::scan(&packs_dir, &builtins)
+                    .into_iter()
+                    .map(|pack| pack.id),
+            );
             let mut tracker = Tracker::new(
                 prefs.enabled_games(&all_games),
                 prefs.show_delay(),
@@ -343,6 +439,7 @@ fn main() {
                 stats_path,
                 prefs_path,
                 settings_path,
+                packs_dir,
                 hook_url: hook_url.clone(),
                 port,
                 server_status: Mutex::new(ServerStatus::Starting),
@@ -406,6 +503,18 @@ fn main() {
             // without ever sending Stop.
             let tick_handle = handle.clone();
             tauri::async_runtime::spawn(async move {
+                // Packs appear while the app is running: the user asks their
+                // agent for a game and expects to play it. Scanning on every
+                // 500ms tick would be a lot of pointless directory reads, and
+                // waiting for a restart would make a freshly generated game
+                // look broken. Ten seconds sits between the two.
+                const PACK_RESCAN_TICKS: u32 = 20;
+                let mut ticks: u32 = 0;
+                let mut known: Vec<String> = {
+                    let state = tick_handle.state::<AppState>();
+                    all_game_ids(&state)
+                };
+
                 loop {
                     tokio::time::sleep(TICK).await;
                     let action = {
@@ -414,6 +523,19 @@ fn main() {
                         tracker.tick(Instant::now())
                     };
                     apply(&tick_handle, action);
+
+                    ticks = ticks.wrapping_add(1);
+                    if ticks % PACK_RESCAN_TICKS == 0 {
+                        let state = tick_handle.state::<AppState>();
+                        let current = all_game_ids(&state);
+                        if current != known {
+                            known = current;
+                            refresh_pool(&state);
+                            // The game window is long-lived, so it has to be
+                            // told; it cannot pick this up at boot.
+                            let _ = tick_handle.emit("packs:changed", ());
+                        }
+                    }
                 }
             });
 

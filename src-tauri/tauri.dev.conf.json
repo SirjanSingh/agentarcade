@@ -3,7 +3,7 @@
   "//": "Development-only overrides, applied via `npm run tauri:dev`. The Vite dev server is reachable only here; the base tauri.conf.json used by `tauri build` and by CI releases has no localhost in its CSP.",
   "app": {
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:5183 http://localhost:5183"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://localhost:5183 http://localhost:5183; frame-src agpack: http://agpack.localhost"
     }
   }
 }
