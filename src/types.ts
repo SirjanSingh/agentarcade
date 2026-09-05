@@ -41,6 +41,25 @@ export interface GameStats {
   proUnlocked?: boolean;
 }
 
+/**
+ * One generated game, as returned by the `list_packs` command. Mirrors the
+ * serde shape of `Pack` in src-tauri/src/packs.rs.
+ */
+export interface Pack {
+  id: string;
+  label: string;
+  unit: string;
+  lowerIsBetter: boolean;
+  /** What the user asked their agent for. Shown in settings. */
+  prompt: string;
+  createdAt: string;
+  /**
+   * Where the iframe loads the game from. Built in Rust because the scheme is
+   * spelled differently on Windows than elsewhere.
+   */
+  url: string;
+}
+
 /** Payload of the `game:show` event emitted by Rust. */
 export interface ShowPayload {
   gameId: string;

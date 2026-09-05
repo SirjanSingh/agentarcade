@@ -1,6 +1,6 @@
 import type { BrowserDriver } from "./bridge";
 import { getStats } from "./bridge";
-import { REGISTRY } from "./registry";
+import { getGameFactory } from "./registry";
 
 /**
  * Dev-only control bar, shown when the page runs in a plain browser instead of
@@ -25,7 +25,8 @@ export function installDevBar(driver: BrowserDriver | null, onStats: () => void)
   const random = new Option("random (no repeats)", "");
   select.add(random);
   for (const id of driver.games) {
-    const game = REGISTRY[id]();
+    const game = getGameFactory(id)?.();
+    if (!game) continue;
     select.add(new Option(game.label, id));
   }
 

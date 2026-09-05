@@ -8,7 +8,7 @@
  */
 
 import { chooseExcluding } from "./picker";
-import { STATS_VERSION, type GameStats } from "./types";
+import { STATS_VERSION, type GameStats, type Pack } from "./types";
 
 /** Keep in step with RECENT_LIMIT in src-tauri/src/stats.rs. */
 const RECENT_LIMIT = 100;
@@ -77,6 +77,21 @@ function readLocalStats(): GameStats {
 export async function getStats(): Promise<GameStats> {
   if (isTauri) return invoke<GameStats>("get_stats");
   return readLocalStats();
+}
+
+/**
+ * Generated games found on disk. Empty in browser mode: packs are served over
+ * a Tauri protocol, so there is nothing for a plain browser to load.
+ */
+export async function listPacks(): Promise<Pack[]> {
+  if (!isTauri) return [];
+  try {
+    return await invoke<Pack[]>("list_packs");
+  } catch (err) {
+    // A failure here must not stop the built-in games appearing.
+    console.error("[agentarcade] could not list generated games", err);
+    return [];
+  }
 }
 
 export async function recordResult(

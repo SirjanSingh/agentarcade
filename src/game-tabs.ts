@@ -1,4 +1,4 @@
-import { REGISTRY } from "./registry";
+import { getGameFactory } from "./registry";
 
 export interface GameTabs {
   refresh(): Promise<void>;
@@ -38,7 +38,10 @@ export function installGameTabs(
     buttons.clear();
 
     for (const id of ids) {
-      const game = REGISTRY[id]();
+      // Constructed only for its label, so a factory must stay cheap and
+      // side-effect-free — generated games included.
+      const game = getGameFactory(id)?.();
+      if (!game) continue;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.role = "tab";

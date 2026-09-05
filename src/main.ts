@@ -1,7 +1,7 @@
 import { formatScore, isBetter, type GameModule } from "./game";
 import { installGameTabs } from "./game-tabs";
-import { GAME_IDS, REGISTRY } from "./registry";
-import { getStats, installBrowserDriver, listen, pendingGame, recordResult, requestHide } from "./bridge";
+import { GAME_IDS, REGISTRY, allGameIds, getGameFactory, registerPacks } from "./registry";
+import { getStats, installBrowserDriver, listen, listPacks, pendingGame, recordResult, requestHide } from "./bridge";
 import { installDevBar } from "./devbar";
 import { renderStats } from "./stats-view";
 import type { ShowPayload } from "./types";
@@ -31,7 +31,7 @@ let starting: Promise<void> | null = null;
 
 const gameTabs = installGameTabs(
   tabsMount,
-  async () => GAME_IDS,
+  async () => allGameIds(),
   (gameId) => void switchGame(gameId),
 );
 
@@ -56,7 +56,7 @@ async function switchGame(gameId: string): Promise<void> {
 
 async function cycleGame(direction: 1 | -1): Promise<void> {
   if (showingStats || !scorecard.hidden) return;
-  const ids = GAME_IDS;
+  const ids = allGameIds();
   if (ids.length === 0) return;
   const idx = Math.max(0, ids.indexOf(currentGameId ?? ids[0]));
   const next = ids[(idx + direction + ids.length) % ids.length];
@@ -77,11 +77,15 @@ async function showStats(): Promise<void> {
 
 async function startGame(gameId: string): Promise<void> {
   const seq = ++startSeq;
+  // A pack id that arrives before the pack list has loaded would fall through
+  // to the built-in fallback below, and the user would get snake instead of
+  // the game they asked for.
+  await packsReady;
   if (starting) await starting;
   teardown();
   showingStats = false;
 
-  const factory = REGISTRY[gameId] ?? REGISTRY[GAME_IDS[0]];
+  const factory = getGameFactory(gameId) ?? REGISTRY[GAME_IDS[0]];
   const game = factory();
 
   const run = (async () => {
@@ -180,7 +184,23 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-void gameTabs.refresh();
+/**
+ * Load the games the user's agent generated. Kept as a promise rather than
+ * awaited at the top level so the built-in games stay playable even if this
+ * never resolves.
+ */
+let packsReady: Promise<void> = loadPacks();
+
+async function loadPacks(): Promise<void> {
+  registerPacks(await listPacks());
+  await gameTabs.refresh();
+}
+
+// Rust rescans for new packs while the app runs. The game window is
+// long-lived, so it has to be told rather than picking them up at boot.
+void listen("packs:changed", () => {
+  packsReady = loadPacks();
+});
 
 void listen<ShowPayload>("game:show", (payload) => {
   void startGame(payload.gameId);

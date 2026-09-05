@@ -1,5 +1,5 @@
 import { formatScore } from "./game";
-import { REGISTRY } from "./registry";
+import { allGameIds, getGameFactory } from "./registry";
 import type { GameStats, RunRecord } from "./types";
 
 const SPARK_W = 74;
@@ -67,7 +67,7 @@ export function renderStats(root: HTMLElement, stats: GameStats): void {
   const table = document.createElement("div");
   table.className = "stats-table";
 
-  const played = Object.keys(REGISTRY).filter((id) => stats.games[id]?.plays);
+  const played = allGameIds().filter((id) => stats.games[id]?.plays);
   if (played.length === 0) {
     const empty = document.createElement("p");
     empty.className = "stats-empty";
@@ -76,7 +76,8 @@ export function renderStats(root: HTMLElement, stats: GameStats): void {
   }
 
   for (const id of played) {
-    const game = REGISTRY[id]();
+    const game = getGameFactory(id)?.();
+    if (!game) continue;
     const entry = stats.games[id];
     const runs = stats.recent.filter((r) => r.gameId === id).slice(0, 12).reverse();
 
@@ -118,7 +119,7 @@ export function renderStats(root: HTMLElement, stats: GameStats): void {
     const list = document.createElement("ul");
     list.className = "stats-recent";
     for (const run of stats.recent.slice(0, 6)) {
-      const game = REGISTRY[run.gameId]?.();
+      const game = getGameFactory(run.gameId)?.();
       const item = document.createElement("li");
       const label = document.createElement("span");
       label.textContent = game ? game.label : run.gameId;
