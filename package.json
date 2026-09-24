@@ -1,6 +1,6 @@
 {
   "name": "agentarcade",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "license": "MIT",
   "description": "Mini-games that appear while your coding agent is thinking, and vanish when it's done.",
