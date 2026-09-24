@@ -3,6 +3,7 @@
 
 mod atomic_write;
 mod diagnostics;
+mod feeds;
 mod logic;
 mod maker;
 mod packs;
@@ -22,7 +23,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use diagnostics::{Diagnostics, LastHookEvent, ServerStatus};
 use logic::games;
 use logic::tracker::{Action, Tracker};
-use prefs::Prefs;
+use prefs::{FeedSite, FeedTarget, Prefs, ThinkingContent, FEEDS_ID};
 use server::{HookMessage, DEFAULT_PORT};
 use stats::Stats;
 
@@ -70,12 +71,22 @@ impl AppState {
 /// Turn a tracker decision into window and webview effects.
 pub fn apply<R: Runtime>(app: &AppHandle<R>, action: Action) {
     match action {
+        Action::Show { game_id } if game_id == FEEDS_ID => {
+            let (sites, target) = {
+                let state = app.state::<AppState>();
+                let prefs = state.prefs.lock().unwrap();
+                (prefs.feed_sites.clone(), prefs.feed_target)
+            };
+            feeds::show_all(app, &sites, target);
+        }
         Action::Show { game_id } => {
             // Emit before showing so the first painted frame already has the
             // game in it rather than an empty stage.
             let _ = app.emit("game:show", json!({ "gameId": game_id }));
             show_window(app);
         }
+        // A feed has no score card to run, so there is nothing to wait for.
+        Action::Freeze if showing_feeds(app) => hide_now(app),
         Action::Freeze => {
             // The frontend runs the score card and then calls hide_window.
             let _ = app.emit("game:freeze", ());
@@ -84,6 +95,12 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, action: Action) {
         Action::HideNow => hide_now(app),
         Action::Nothing => {}
     }
+}
+
+fn showing_feeds<R: Runtime>(app: &AppHandle<R>) -> bool {
+    let state = app.state::<AppState>();
+    let current = state.tracker.lock().unwrap().current_game();
+    current.as_deref() == Some(FEEDS_ID)
 }
 
 fn show_window<R: Runtime>(app: &AppHandle<R>) {
@@ -111,6 +128,8 @@ fn watchdog<R: Runtime>(app: &AppHandle<R>) {
 }
 
 fn hide_now<R: Runtime>(app: &AppHandle<R>) {
+    // Feeds first: window::hide is what hands focus back to the terminal.
+    feeds::hide_all(app);
     window::hide(app);
     let _ = app.emit("game:hide", ());
     if let Some(state) = app.try_state::<AppState>() {
@@ -168,8 +187,8 @@ fn all_game_ids(state: &AppState) -> Vec<String> {
 /// either mutex is touched, so a slow disk cannot stall a hook event.
 fn refresh_pool(state: &AppState) {
     let all = all_game_ids(state);
-    let enabled = state.prefs.lock().unwrap().enabled_games(&all);
-    state.tracker.lock().unwrap().set_games(enabled);
+    let pool = state.prefs.lock().unwrap().rotation(&all);
+    state.tracker.lock().unwrap().set_games(pool);
 }
 
 /// Asked once at webview boot. Tauri events are not replayed, so a hook that
@@ -177,7 +196,13 @@ fn refresh_pool(state: &AppState) {
 /// window; this lets the frontend catch up.
 #[tauri::command]
 fn pending_game(state: State<AppState>) -> Option<String> {
-    state.tracker.lock().unwrap().current_game()
+    // The feeds are not a game; the game webview must not try to mount them.
+    state
+        .tracker
+        .lock()
+        .unwrap()
+        .current_game()
+        .filter(|id| id != FEEDS_ID)
 }
 
 /// The registered games plus which of them the user has switched off.
@@ -189,6 +214,9 @@ fn get_prefs(state: State<AppState>) -> serde_json::Value {
         "scorecardDurationMs": prefs.scorecard_duration_ms,
         "disabledGames": prefs.disabled_games,
         "firstRunComplete": prefs.first_run_complete,
+        "thinkingContent": prefs.thinking_content,
+        "feedSites": prefs.feed_sites,
+        "feedTarget": prefs.feed_target,
         // Generated packs are included so the Options view can switch them off
         // exactly like a built-in game, with no extra machinery.
         "allGames": all_game_ids(&state),
@@ -251,6 +279,52 @@ fn set_game_enabled(state: State<AppState>, game_id: String, enabled: bool) {
     }
     refresh_pool(&state);
     state.save_prefs();
+}
+
+/// After a feed setting changes: rebuild the pool, save, and if what is on
+/// screen no longer matches the setting, put it away rather than leave a stale
+/// window (or a game when feeds were asked for) up until the agent stops.
+fn after_feed_change(app: &AppHandle, target_changed: bool) {
+    let state = app.state::<AppState>();
+    refresh_pool(&state);
+    state.save_prefs();
+    let wants_feeds = state.prefs.lock().unwrap().shows_feeds();
+    let current = state.tracker.lock().unwrap().current_game();
+    if let Some(current) = current {
+        let has_feeds = current == FEEDS_ID;
+        if has_feeds != wants_feeds || (has_feeds && target_changed) {
+            hide_now(app);
+        }
+    }
+}
+
+#[tauri::command]
+fn set_thinking_content(app: AppHandle, content: ThinkingContent) {
+    app.state::<AppState>().prefs.lock().unwrap().thinking_content = content;
+    after_feed_change(&app, false);
+}
+
+#[tauri::command]
+fn set_feed_enabled(app: AppHandle, site: FeedSite, enabled: bool) {
+    {
+        let state = app.state::<AppState>();
+        let mut prefs = state.prefs.lock().unwrap();
+        prefs.feed_sites.retain(|s| *s != site);
+        if enabled {
+            prefs.feed_sites.push(site);
+            // Keep a stable left-to-right order however they were ticked.
+            prefs
+                .feed_sites
+                .sort_by_key(|s| FeedSite::ALL.iter().position(|a| a == s));
+        }
+    }
+    after_feed_change(&app, false);
+}
+
+#[tauri::command]
+fn set_feed_target(app: AppHandle, target: FeedTarget) {
+    app.state::<AppState>().prefs.lock().unwrap().feed_target = target;
+    after_feed_change(&app, true);
 }
 
 #[tauri::command]
@@ -343,6 +417,9 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // Rust-side only, for feeds in the default browser. No capability
+        // grants it to any webview.
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(
@@ -363,6 +440,9 @@ fn main() {
             get_prefs,
             set_show_delay,
             set_game_enabled,
+            set_thinking_content,
+            set_feed_enabled,
+            set_feed_target,
             complete_onboarding,
             diagnostics_snapshot,
             remove_orphaned_hooks,
@@ -445,7 +525,7 @@ fn main() {
                     .map(|pack| pack.id),
             );
             let mut tracker = Tracker::new(
-                prefs.enabled_games(&all_games),
+                prefs.rotation(&all_games),
                 prefs.show_delay(),
                 seed(),
             );

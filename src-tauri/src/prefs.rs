@@ -46,6 +46,61 @@ pub enum PausePref {
     Indefinite,
 }
 
+/// What opens while the agent thinks. One or the other, never both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ThinkingContent {
+    #[default]
+    Games,
+    Feeds,
+}
+
+/// A short-video site the user can have open while the agent thinks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FeedSite {
+    TikTok,
+    Instagram,
+    YouTubeShorts,
+}
+
+/// Where the feeds open. App windows can be hidden and paused when the agent
+/// is done; the default browser keeps the user's logins but is out of reach.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FeedTarget {
+    #[default]
+    AppWindows,
+    DefaultBrowser,
+}
+
+/// The rotation-pool entry that stands for "the feeds" rather than a game.
+///
+/// The tracker only knows ids, so feeds mode hands it a pool of exactly this
+/// one. The `@` can never pass `packs::valid_id`, so no pack can collide.
+pub const FEEDS_ID: &str = "@feeds";
+
+fn default_feed_sites() -> Vec<FeedSite> {
+    vec![FeedSite::YouTubeShorts]
+}
+
+/// A feed list that tolerates entries this build does not know.
+///
+/// A site added by a newer build (or a typo in a hand edit) must not make
+/// the whole file "corrupt" and reset every other preference.
+fn lenient_feed_sites<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<FeedSite>, D::Error> {
+    let raw = Vec::<serde_json::Value>::deserialize(d)?;
+    let mut sites = Vec::new();
+    for value in raw {
+        if let Ok(site) = serde_json::from_value::<FeedSite>(value) {
+            if !sites.contains(&site) {
+                sites.push(site);
+            }
+        }
+    }
+    Ok(sites)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Prefs {
@@ -68,6 +123,13 @@ pub struct Prefs {
     /// with no prefs file plays everything and needs no migration.
     #[serde(default)]
     pub disabled_games: Vec<String>,
+    #[serde(default)]
+    pub thinking_content: ThinkingContent,
+    /// Kept while the user is in games mode, so switching back restores them.
+    #[serde(default = "default_feed_sites", deserialize_with = "lenient_feed_sites")]
+    pub feed_sites: Vec<FeedSite>,
+    #[serde(default)]
+    pub feed_target: FeedTarget,
 }
 
 impl Default for Prefs {
@@ -80,6 +142,9 @@ impl Default for Prefs {
             last_hook_url: None,
             first_run_complete: false,
             disabled_games: Vec::new(),
+            thinking_content: ThinkingContent::Games,
+            feed_sites: default_feed_sites(),
+            feed_target: FeedTarget::AppWindows,
         }
     }
 }
@@ -126,6 +191,21 @@ impl Prefs {
             all.to_vec()
         } else {
             enabled
+        }
+    }
+
+    /// Whether a show should open the feeds. Feeds mode with every site
+    /// unticked means games: an empty feed list would otherwise show nothing.
+    pub fn shows_feeds(&self) -> bool {
+        self.thinking_content == ThinkingContent::Feeds && !self.feed_sites.is_empty()
+    }
+
+    /// The pool the tracker picks from: the enabled games, or the feeds.
+    pub fn rotation(&self, all_games: &[String]) -> Vec<String> {
+        if self.shows_feeds() {
+            vec![FEEDS_ID.to_string()]
+        } else {
+            self.enabled_games(all_games)
         }
     }
 
@@ -317,5 +397,73 @@ mod tests {
             ..Prefs::default()
         };
         assert_eq!(p.enabled_games(&all), all, "an empty rotation would break the app");
+    }
+
+    #[test]
+    fn an_old_file_opens_games() {
+        let path = temp_path("old-file");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, r#"{"showDelaySecs": 30}"#).unwrap();
+        let p = Prefs::load(&path);
+        assert_eq!(p.thinking_content, ThinkingContent::Games);
+        assert_eq!(p.feed_sites, vec![FeedSite::YouTubeShorts]);
+        assert_eq!(p.feed_target, FeedTarget::AppWindows);
+    }
+
+    #[test]
+    fn feed_settings_round_trip() {
+        let path = temp_path("feeds-round-trip");
+        let p = Prefs {
+            thinking_content: ThinkingContent::Feeds,
+            feed_sites: vec![FeedSite::TikTok, FeedSite::Instagram],
+            feed_target: FeedTarget::DefaultBrowser,
+            ..Prefs::default()
+        };
+        p.save(&path).unwrap();
+        let back = Prefs::load(&path);
+        assert_eq!(back.thinking_content, ThinkingContent::Feeds);
+        assert_eq!(back.feed_sites, vec![FeedSite::TikTok, FeedSite::Instagram]);
+        assert_eq!(back.feed_target, FeedTarget::DefaultBrowser);
+    }
+
+    #[test]
+    fn an_unknown_site_is_dropped_not_fatal() {
+        let path = temp_path("unknown-site");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            r#"{"firstRunComplete": true, "feedSites": ["vine", "tikTok", "tikTok"]}"#,
+        )
+        .unwrap();
+        let p = Prefs::load(&path);
+        assert!(p.first_run_complete, "one bad site must not reset the file");
+        assert_eq!(p.feed_sites, vec![FeedSite::TikTok]);
+        assert!(!path.with_extension("json.bak").exists());
+    }
+
+    #[test]
+    fn feeds_mode_rotates_only_the_feeds() {
+        let all: Vec<String> = vec!["snake".into(), "aim".into()];
+        let p = Prefs {
+            thinking_content: ThinkingContent::Feeds,
+            ..Prefs::default()
+        };
+        assert_eq!(p.rotation(&all), vec![FEEDS_ID.to_string()]);
+    }
+
+    #[test]
+    fn feeds_mode_with_no_sites_falls_back_to_games() {
+        let all: Vec<String> = vec!["snake".into(), "aim".into()];
+        let p = Prefs {
+            thinking_content: ThinkingContent::Feeds,
+            feed_sites: Vec::new(),
+            ..Prefs::default()
+        };
+        assert_eq!(p.rotation(&all), all);
+    }
+
+    #[test]
+    fn the_feeds_id_can_never_be_a_pack() {
+        assert!(!crate::packs::valid_id(FEEDS_ID));
     }
 }

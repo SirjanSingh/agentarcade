@@ -17,6 +17,7 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
 # In-app updates. Artifacts are signed at release time with a key that
 # lives only in the TAURI_SIGNING_PRIVATE_KEY repo secret; the binary
 # carries the matching public key and refuses anything it cannot verify.

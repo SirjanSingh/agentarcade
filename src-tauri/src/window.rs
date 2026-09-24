@@ -122,7 +122,7 @@ mod platform {
     pub fn restore() {}
 }
 
-fn remember_foreground() {
+pub(crate) fn remember_foreground() {
     platform::remember();
 }
 
