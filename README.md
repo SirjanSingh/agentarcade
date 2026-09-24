@@ -46,6 +46,12 @@ editor's config file.
 telemetry, no backend. Nothing leaves your machine, because there's nothing in
 there that could send it.
 
+The one opt-in exception is **Short videos** mode (Settings, Options). If you
+turn it on, TikTok, Instagram Reels or YouTube Shorts load from the internet.
+That happens either in their own windows or in your browser, and the sites see
+you the way they would in any browser. Those windows get no access to the app.
+Games mode, the default, never goes online.
+
 **One local server**, bound to `127.0.0.1:47913`. That's how your editor's hooks
 reach it. It rejects any request whose `Host` header isn't that exact loopback
 address, which closes off the DNS rebinding path a web page could otherwise use
