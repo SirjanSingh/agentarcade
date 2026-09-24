@@ -161,7 +161,7 @@ impl Prefs {
                 prefs
             }
             Err(err) => {
-                eprintln!("[agentarcade] prefs.json unreadable ({err}); using defaults");
+                alog!("prefs.json unreadable ({err}); using defaults");
                 let _ = std::fs::write(path.with_extension("json.bak"), raw);
                 Self::default()
             }

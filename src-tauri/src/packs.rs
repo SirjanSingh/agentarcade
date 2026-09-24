@@ -119,7 +119,7 @@ pub fn scan(dir: &Path, builtins: &[String]) -> Vec<Pack> {
         };
         match load_one(dir, &id, builtins, &packs) {
             Ok(pack) => packs.push(pack),
-            Err(reason) => eprintln!("[agentarcade] skipping game pack {id:?}: {reason}"),
+            Err(reason) => alog!("skipping game pack {id:?}: {reason}"),
         }
     }
 

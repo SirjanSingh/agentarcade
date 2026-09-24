@@ -65,7 +65,7 @@ pub fn open_settings<R: Runtime>(app: &AppHandle<R>, view: &str) {
         .build()
     {
         Ok(_) => {}
-        Err(err) => eprintln!("[agentarcade] could not open the settings window: {err}"),
+        Err(err) => alog!("could not open the settings window: {err}"),
     }
 }
 

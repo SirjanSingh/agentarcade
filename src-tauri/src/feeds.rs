@@ -65,7 +65,7 @@ pub fn show_all<R: Runtime>(app: &AppHandle<R>, sites: &[FeedSite], target: Feed
         FeedTarget::DefaultBrowser => {
             for site in sites {
                 if let Err(err) = app.opener().open_url(site.url(), None::<&str>) {
-                    eprintln!("[agentarcade] could not open {}: {err}", site.url());
+                    alog!("could not open {}: {err}", site.url());
                 }
             }
         }
@@ -127,7 +127,7 @@ fn show_window<R: Runtime>(app: &AppHandle<R>, site: FeedSite, x: f64, y: f64, w
                 }
             });
         }
-        Err(err) => eprintln!("[agentarcade] could not open the {} window: {err}", site.title()),
+        Err(err) => alog!("could not open the {} window: {err}", site.title()),
     }
 }
 

@@ -46,6 +46,16 @@ interface Pack {
   url: string;
 }
 
+/** Mirrors list_agents in src-tauri/src/main.rs. */
+interface AgentRow {
+  id: string;
+  name: string;
+  detected: boolean;
+  installed: boolean;
+  path: string;
+  note: string | null;
+}
+
 /** Mirrors SkillStatus in src-tauri/src/maker.rs. */
 type SkillStatus = "absent" | "installed" | "foreign";
 
@@ -99,6 +109,43 @@ function row(key: string, ...value: (Node | string)[]): HTMLElement {
 
 function badge(ok: boolean, text: string): HTMLElement {
   return el("span", { class: `badge ${ok ? "ok" : "bad"}` }, text);
+}
+
+/**
+ * One row per coding agent: connect it, disconnect it, or say it is not on
+ * this machine. Shared by Setup and Status so the two never disagree.
+ */
+async function agentRows(): Promise<HTMLElement> {
+  const agents = await invoke<AgentRow[]>("list_agents");
+  const rows = el("div", { class: "rows" });
+  for (const a of agents) {
+    const value: (Node | string)[] = [];
+    if (!a.detected && !a.installed) {
+      value.push(el("span", { class: "muted" }, "not found on this computer"));
+    } else {
+      if (a.installed) value.push(badge(true, "connected"), " ");
+      const button = el(
+        "button",
+        { class: a.installed ? "action" : "action primary", type: "button" },
+        a.installed ? "Disconnect" : "Connect",
+      );
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await invoke("set_agent_hooks", { agent: a.id, installed: !a.installed });
+        } catch (err) {
+          window.alert(String(err));
+        }
+        await render();
+      });
+      value.push(button);
+      if (a.installed && a.note) {
+        value.push(el("div", { class: "muted agent-note" }, a.note));
+      }
+    }
+    rows.append(row(a.name, ...value));
+  }
+  return rows;
 }
 
 function setView(next: ViewName): void {
@@ -165,6 +212,8 @@ async function renderStatus(): Promise<void> {
       "Everything here has to be green for a game to appear while your agent thinks.",
     ),
     rows,
+    el("h2", {}, "agents"),
+    await agentRows(),
   ];
 
   if (d.server.state === "failed") {
@@ -205,6 +254,9 @@ async function renderStatus(): Promise<void> {
   const test = el("button", { class: "action", type: "button" }, "Play a game now");
   test.addEventListener("click", () => void invoke("play_now"));
   actions.append(test);
+  const log = el("button", { class: "action", type: "button" }, "Open log");
+  log.addEventListener("click", () => void invoke("open_log"));
+  actions.append(log);
   parts.push(actions);
 
   if (d.orphanedHooks.length > 0) {
@@ -242,24 +294,17 @@ async function renderWelcome(): Promise<void> {
 
   const hookStep = el("li", {});
   hookStep.append(
-    d.hooksInstalled
-      ? el("span", {}, "Agent hooks are installed. ", badge(true, "done"))
-      : el(
-          "span",
-          {},
-          "Let agentarcade know when your agent is thinking. This adds three entries to ",
-          el("code", {}, "settings.json"),
-          " and backs up the original first.",
-        ),
+    el(
+      "span",
+      {},
+      "Connect the agents you use, so agentarcade knows when they are thinking. Each one gets a few hook entries in its own config file, and the original file is backed up first.",
+    ),
+    await agentRows(),
   );
-  if (!d.hooksInstalled && d.settingsReadable) {
-    const enable = el("button", { class: "action primary", type: "button" }, "Enable agent hooks");
-    enable.addEventListener("click", async () => {
-      enable.disabled = true;
-      await invoke("set_hooks_installed", { installed: true });
-      await render();
-    });
-    hookStep.append(el("div", { class: "actions" }, enable));
+  if (!d.settingsReadable) {
+    hookStep.append(
+      el("div", { class: "note" }, "Claude Code's settings.json is not valid JSON, so agentarcade will not touch it until it is fixed."),
+    );
   }
 
   const test = el("button", { class: "action", type: "button" }, "Play a game now");

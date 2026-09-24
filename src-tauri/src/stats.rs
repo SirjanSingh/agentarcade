@@ -108,7 +108,7 @@ impl Stats {
                 stats
             }
             Err(err) => {
-                eprintln!("[agentarcade] stats.json unreadable ({err}); starting fresh");
+                alog!("stats.json unreadable ({err}); starting fresh");
                 let _ = fs::write(path.with_extension("json.bak"), raw);
                 Self::default()
             }

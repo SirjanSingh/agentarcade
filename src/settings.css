@@ -249,6 +249,15 @@ label:has(input:disabled) {
   cursor: default;
 }
 
+.agent-note {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.steps .rows {
+  margin-top: 10px;
+}
+
 code {
   background: var(--panel);
   border: 1px solid var(--line);

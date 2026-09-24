@@ -55,7 +55,10 @@ Games mode, the default, never goes online.
 **One local server**, bound to `127.0.0.1:47913`. That's how your editor's hooks
 reach it. It rejects any request whose `Host` header isn't that exact loopback
 address, which closes off the DNS rebinding path a web page could otherwise use
-to reach a server on your own machine.
+to reach a server on your own machine. It also rejects anything carrying the
+`Origin` or `Sec-Fetch-*` headers a browser adds, so a page you visit can't
+post to it directly either. Hooks come from curl or the agent itself, which
+never send them.
 
 **It writes to `~/.claude/settings.json`, but only when you ask it to.**
 Clicking "Enable agent hooks" copies your file to
@@ -155,38 +158,29 @@ Two things, both in the setup window and in the tray menu.
 **1. Start at login.** Hooks do nothing while the app isn't running, and that's
 the one way agentarcade quietly does nothing at all.
 
-**2. Wire up your editor.**
+**2. Connect your agents.** The **Setup** tab lists Claude Code, Codex, Cursor
+and Antigravity, with a **Connect** button for each one found on this computer.
+The tray's **Enable agent hooks** connects all of them at once.
 
-### Claude Code
+| Agent | What Connect writes | Starts on | Ends on |
+|---|---|---|---|
+| Claude Code | `~/.claude/settings.json`, an `http` hook | `UserPromptSubmit`, `PreCompact` | `Stop` |
+| Codex | `~/.codex/hooks.json`, a command hook | `UserPromptSubmit` | `Stop` |
+| Cursor | `~/.cursor/hooks.json`, a command hook | `beforeSubmitPrompt`, `preCompact` | `stop` |
+| Antigravity | `~/.gemini/config/hooks.json`, a command hook named `agentarcade` | first `PreInvocation` of a turn | `Stop` |
 
-Tray, then **Enable agent hooks**. See
-[What it does to your machine](#what-it-does-to-your-machine) for exactly what
-that writes.
+Codex, Cursor and Antigravity can only run commands, so their hook is a
+`curl.exe` that forwards the hook's own JSON to the app. `curl.exe` ships with
+Windows 10 (1803) and later, so there is nothing else to install. Every file is
+backed up once before the first change, and **Disconnect** removes exactly what
+Connect added.
 
-### Cursor
+Codex asks you to approve a new hook once before it runs: type `/hooks` in
+Codex and trust the agentarcade entries.
 
-Claude Code hooks don't fire from Cursor's agent, so use the bundled bridge:
-
-```powershell
-cd path\to\agentarcade   # clone or extract the repo
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.cursor\hooks"
-Copy-Item scripts\cursor-hook.js "$env:USERPROFILE\.cursor\hooks\agentarcade.js"
-```
-
-Create `%USERPROFILE%\.cursor\hooks.json`, replacing `YOUR_USER`:
-
-```json
-{
-  "version": 1,
-  "hooks": {
-    "beforeSubmitPrompt": [{ "command": "node \"C:\\Users\\YOUR_USER\\.cursor\\hooks\\agentarcade.js\" UserPromptSubmit" }],
-    "preCompact":       [{ "command": "node \"C:\\Users\\YOUR_USER\\.cursor\\hooks\\agentarcade.js\" PreCompact" }],
-    "stop":             [{ "command": "node \"C:\\Users\\YOUR_USER\\.cursor\\hooks\\agentarcade.js\" Stop" }]
-  }
-}
-```
-
-Restart Cursor. Needs Node.js on your PATH.
+If you used the old Node bridge for Cursor (`claudegame.js` or
+`agentarcade.js` in `~/.cursor/hooks`), Connect replaces those entries. The
+script file itself can be deleted.
 
 ### Check it worked
 

@@ -1,7 +1,7 @@
 //! Tray icon, its menu, and the settings.json surgery behind "Enable hooks".
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
@@ -9,6 +9,7 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
+use crate::logic::agents::{self, Agent};
 use crate::logic::hooks;
 use crate::prefs::SHOW_DELAY_CHOICES;
 use crate::{apply, AppState};
@@ -61,6 +62,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let hooks_item = MenuItem::with_id(app, HOOKS_ITEM, hooks_label(app), true, None::<&str>)?;
     let autostart = MenuItem::with_id(app, "autostart", autostart_label(app), true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings & status…", true, None::<&str>)?;
+    let open_log = MenuItem::with_id(app, "open_log", "Open log", true, None::<&str>)?;
     let show_stats = MenuItem::with_id(app, "show_stats", "Show stats", true, None::<&str>)?;
     let open_stats = MenuItem::with_id(app, "open_stats", "Open stats file", true, None::<&str>)?;
     let check_updates =
@@ -80,6 +82,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             &hooks_item,
             &autostart,
             &settings,
+            &open_log,
             &open_stats,
             &check_updates,
             &PredefinedMenuItem::separator(app)?,
@@ -132,6 +135,12 @@ fn on_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
         }
         "settings" => {
             crate::window::open_settings(app, "status");
+            crate::logic::tracker::Action::Nothing
+        }
+        "open_log" => {
+            if let Err(err) = crate::open_log_file(app) {
+                alog!("could not open the log: {err}");
+            }
             crate::logic::tracker::Action::Nothing
         }
         "show_stats" => {
@@ -189,7 +198,7 @@ fn set_show_delay<R: Runtime>(app: &AppHandle<R>, secs: u64) {
             .set_show_delay(prefs.show_delay());
     }
     state.save_prefs();
-    eprintln!("[agentarcade] show delay set to {secs}s");
+    alog!("show delay set to {secs}s");
 }
 
 fn hooks_label<R: Runtime>(app: &AppHandle<R>) -> &'static str {
@@ -223,7 +232,7 @@ fn toggle_autostart<R: Runtime>(app: &AppHandle<R>) {
         manager.enable()
     };
     if let Err(err) = result {
-        eprintln!("[agentarcade] could not change autostart: {err}");
+        alog!("could not change autostart: {err}");
     }
 }
 
@@ -256,6 +265,9 @@ fn write_settings(path: &Path, settings: &Value) -> Result<(), String> {
         .map_err(|err| format!("could not write {}: {err}", path.display()))
 }
 
+/// The tray's one-click switch. On: Claude Code plus every other agent found
+/// on this machine. Off: all of them. Claude Code's state decides which way
+/// it flips, since that is the one the menu label reflects.
 fn toggle_hooks<R: Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
     let installed = match read_settings(&state.settings_path) {
@@ -265,9 +277,62 @@ fn toggle_hooks<R: Runtime>(app: &AppHandle<R>) {
             return;
         }
     };
-    if let Err(err) = set_hooks(&state, !installed) {
+    let install = !installed;
+    if let Err(err) = set_hooks(&state, install) {
         report(app, &err);
     }
+    for agent in Agent::ALL {
+        if install && !agent_detected(&state, agent) {
+            continue;
+        }
+        if let Err(err) = set_agent_hooks(&state, agent, install) {
+            report(app, &err);
+        }
+    }
+}
+
+fn join(base: &Path, parts: &[&str]) -> PathBuf {
+    parts.iter().fold(base.to_path_buf(), |p, part| p.join(part))
+}
+
+pub fn agent_config_path(state: &AppState, agent: Agent) -> PathBuf {
+    join(&state.home_dir, agent.config_file())
+}
+
+/// Installed means its home folder exists. A tool that is not there gets no
+/// config file created for it.
+pub fn agent_detected(state: &AppState, agent: Agent) -> bool {
+    join(&state.home_dir, agent.home_dir()).is_dir()
+}
+
+pub fn agent_hooks_installed(state: &AppState, agent: Agent) -> bool {
+    read_settings(&agent_config_path(state, agent))
+        .is_ok_and(|cfg| agents::is_installed(&cfg, agent, state.port))
+}
+
+/// Install or remove one agent's hooks, with the same care as Claude Code's
+/// settings.json: refuse an unparseable file, back it up once, write
+/// atomically.
+pub fn set_agent_hooks(state: &AppState, agent: Agent, install: bool) -> Result<(), String> {
+    let path = agent_config_path(state, agent);
+    if !install && !path.exists() {
+        return Ok(());
+    }
+    let mut config = read_settings(&path)?;
+    if install {
+        back_up(&path);
+        agents::install(&mut config, agent, state.port);
+    } else {
+        agents::uninstall(&mut config, agent);
+    }
+    write_settings(&path, &config)?;
+    alog!(
+        "{} hooks {} in {}",
+        agent.name(),
+        if install { "installed" } else { "removed" },
+        path.display()
+    );
+    Ok(())
 }
 
 /// Install or remove our hooks, keeping a one-time backup of the user's
@@ -306,8 +371,8 @@ pub fn set_hooks(state: &AppState, install: bool) -> Result<(), String> {
     }
     state.save_prefs();
 
-    eprintln!(
-        "[agentarcade] hooks {} in {}",
+    alog!(
+        "hooks {} in {}",
         if install { "installed" } else { "removed" },
         path.display()
     );
@@ -373,7 +438,7 @@ fn check_for_updates<R: Runtime>(app: &AppHandle<R>) {
 
 fn notify<R: Runtime>(app: &AppHandle<R>, message: &str, is_error: bool) {
     use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-    eprintln!("[agentarcade] {message}");
+    alog!("{message}");
     let app = app.clone();
     let message = message.to_string();
     std::thread::spawn(move || {
@@ -391,7 +456,7 @@ fn notify<R: Runtime>(app: &AppHandle<R>, message: &str, is_error: bool) {
 
 fn report<R: Runtime>(app: &AppHandle<R>, message: &str) {
     use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-    eprintln!("[agentarcade] {message}");
+    alog!("{message}");
     let app = app.clone();
     let message = message.to_string();
     std::thread::spawn(move || {
@@ -433,7 +498,7 @@ fn reveal(path: &Path) {
             .spawn();
 
         if let Err(err) = result {
-            eprintln!("[agentarcade] could not open stats location: {err}");
+            alog!("could not open stats location: {err}");
         }
     });
 }

@@ -1,6 +1,8 @@
 // Release builds have no console window — this is a tray app.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[macro_use]
+mod applog;
 mod atomic_write;
 mod diagnostics;
 mod feeds;
@@ -48,6 +50,8 @@ pub struct AppState {
     pub packs_dir: PathBuf,
     /// Where the game-maker skill is installed, if the user asks for it.
     pub skill_dir: PathBuf,
+    /// The user's home, where every agent keeps its config folder.
+    pub home_dir: PathBuf,
     pub hook_url: String,
     pub port: u16,
     /// Whether the hook endpoint actually bound. Without this a port conflict
@@ -63,7 +67,7 @@ impl AppState {
     pub fn save_prefs(&self) {
         let prefs = self.prefs.lock().unwrap();
         if let Err(err) = prefs.save(&self.prefs_path) {
-            eprintln!("[agentarcade] could not save prefs: {err}");
+            alog!("could not save prefs: {err}");
         }
     }
 }
@@ -72,6 +76,7 @@ impl AppState {
 pub fn apply<R: Runtime>(app: &AppHandle<R>, action: Action) {
     match action {
         Action::Show { game_id } if game_id == FEEDS_ID => {
+            alog!("showing short-video feeds");
             let (sites, target) = {
                 let state = app.state::<AppState>();
                 let prefs = state.prefs.lock().unwrap();
@@ -80,14 +85,19 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, action: Action) {
             feeds::show_all(app, &sites, target);
         }
         Action::Show { game_id } => {
+            alog!("showing game {game_id}");
             // Emit before showing so the first painted frame already has the
             // game in it rather than an empty stage.
             let _ = app.emit("game:show", json!({ "gameId": game_id }));
             show_window(app);
         }
         // A feed has no score card to run, so there is nothing to wait for.
-        Action::Freeze if showing_feeds(app) => hide_now(app),
+        Action::Freeze if showing_feeds(app) => {
+            alog!("agent finished; hiding feeds");
+            hide_now(app)
+        }
         Action::Freeze => {
+            alog!("agent finished; ending game");
             // The frontend runs the score card and then calls hide_window.
             let _ = app.emit("game:freeze", ());
             watchdog(app);
@@ -121,13 +131,14 @@ fn watchdog<R: Runtime>(app: &AppHandle<R>) {
             tracker.is_visible() && !tracker.has_active_sessions()
         };
         if stuck {
-            eprintln!("[agentarcade] frontend never dismissed the window; hiding it");
+            alog!("frontend never dismissed the window; hiding it");
             hide_now(&app);
         }
     });
 }
 
 fn hide_now<R: Runtime>(app: &AppHandle<R>) {
+    alog!("hiding");
     // Feeds first: window::hide is what hands focus back to the terminal.
     feeds::hide_all(app);
     window::hide(app);
@@ -153,7 +164,7 @@ fn record_result(
     let mut stats = state.stats.lock().unwrap();
     stats.record(&game_id, score, duration_ms, lower_is_better);
     if let Err(err) = stats.save(&state.stats_path) {
-        eprintln!("[agentarcade] could not save stats: {err}");
+        alog!("could not save stats: {err}");
     }
 }
 
@@ -350,6 +361,41 @@ fn set_hooks_installed(state: State<AppState>, installed: bool) -> Result<(), St
     tray::set_hooks(&state, installed)
 }
 
+/// One row per supported agent, for the Setup and Status views.
+#[tauri::command]
+fn list_agents(state: State<AppState>) -> Vec<serde_json::Value> {
+    let claude_dir = state.home_dir.join(".claude");
+    let mut rows = vec![json!({
+        "id": "claude",
+        "name": "Claude Code",
+        "detected": claude_dir.is_dir(),
+        "installed": tray::read_settings(&state.settings_path)
+            .is_ok_and(|s| logic::hooks::is_installed(&s, &state.hook_url)),
+        "path": state.settings_path.display().to_string(),
+        "note": null,
+    })];
+    for agent in logic::agents::Agent::ALL {
+        rows.push(json!({
+            "id": agent.id(),
+            "name": agent.name(),
+            "detected": tray::agent_detected(&state, agent),
+            "installed": tray::agent_hooks_installed(&state, agent),
+            "path": tray::agent_config_path(&state, agent).display().to_string(),
+            "note": agent.note(),
+        }));
+    }
+    rows
+}
+
+#[tauri::command]
+fn set_agent_hooks(state: State<AppState>, agent: String, installed: bool) -> Result<(), String> {
+    if agent == "claude" {
+        return tray::set_hooks(&state, installed);
+    }
+    let agent = logic::agents::Agent::from_id(&agent).ok_or("unknown agent")?;
+    tray::set_agent_hooks(&state, agent, installed)
+}
+
 #[tauri::command]
 fn play_now(app: AppHandle) {
     let action = {
@@ -358,6 +404,23 @@ fn play_now(app: AppHandle) {
         tracker.force_show(Instant::now())
     };
     apply(&app, action);
+}
+
+/// Open the background log in the user's default text viewer.
+#[tauri::command]
+fn open_log(app: AppHandle) -> Result<(), String> {
+    open_log_file(&app)
+}
+
+pub fn open_log_file<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = applog::path().ok_or("logging has not started")?;
+    if !path.exists() {
+        alog!("log opened");
+    }
+    app.opener()
+        .open_path(path.display().to_string(), None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -395,7 +458,7 @@ fn port() -> u16 {
 /// `.expect()` here would look to the user like the app simply never started.
 /// Write the reason somewhere retrievable, then say so on screen.
 fn fatal(app: &AppHandle, msg: &str) -> ! {
-    eprintln!("[agentarcade] fatal: {msg}");
+    alog!("fatal: {msg}");
     let log = std::env::temp_dir().join("agentarcade-startup-error.log");
     let _ = std::fs::write(&log, format!("agentarcade could not start.\n\n{msg}\n"));
 
@@ -429,7 +492,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             // A second launch just means "I want the tray app" — it is already
             // running, so surface the settings window rather than doing nothing.
-            eprintln!("[agentarcade] already running ({})", app.package_info().name);
+            alog!("already running ({})", app.package_info().name);
             window::open_settings(app, "status");
         }))
         .invoke_handler(tauri::generate_handler![
@@ -447,8 +510,11 @@ fn main() {
             diagnostics_snapshot,
             remove_orphaned_hooks,
             set_hooks_installed,
+            list_agents,
+            set_agent_hooks,
             play_now,
             open_settings,
+            open_log,
             list_packs,
             delete_pack,
             maker_skill_status,
@@ -508,6 +574,12 @@ fn main() {
                 );
             };
 
+            applog::init(&data_dir.join("logs"));
+            alog!(
+                "agentarcade {} starting",
+                handle.package_info().version
+            );
+
             let stats_path = data_dir.join("stats.json");
             let prefs_path = data_dir.join("prefs.json");
             let packs_dir = data_dir.join("games");
@@ -543,6 +615,7 @@ fn main() {
                 settings_path,
                 packs_dir,
                 skill_dir,
+                home_dir: home.clone(),
                 hook_url: hook_url.clone(),
                 port,
                 server_status: Mutex::new(ServerStatus::Starting),
@@ -561,7 +634,7 @@ fn main() {
                     Ok(()) => {}
                     Err(err) => {
                         let reason = err.to_string();
-                        eprintln!("[agentarcade] hook server failed on port {port}: {reason}");
+                        alog!("hook server failed on port {port}: {reason}");
                         let state = server_handle.state::<AppState>();
                         *state.server_status.lock().unwrap() = ServerStatus::Failed { reason };
                     }
