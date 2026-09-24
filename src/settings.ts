@@ -49,7 +49,21 @@ interface Pack {
 /** Mirrors SkillStatus in src-tauri/src/maker.rs. */
 type SkillStatus = "absent" | "installed" | "foreign";
 
+/** Mirror the camelCase serde names of the Rust enums in prefs.rs. */
+type ThinkingContent = "games" | "feeds";
+type FeedSite = "tikTok" | "instagram" | "youTubeShorts";
+type FeedTarget = "appWindows" | "defaultBrowser";
+
+const FEED_SITES: { id: FeedSite; label: string }[] = [
+  { id: "tikTok", label: "TikTok" },
+  { id: "instagram", label: "Instagram Reels" },
+  { id: "youTubeShorts", label: "YouTube Shorts" },
+];
+
 interface Prefs {
+  thinkingContent: ThinkingContent;
+  feedSites: FeedSite[];
+  feedTarget: FeedTarget;
   showDelaySecs: number;
   scorecardDurationMs: number;
   disabledGames: string[];
@@ -286,6 +300,63 @@ async function renderWelcome(): Promise<void> {
 async function renderOptions(): Promise<void> {
   const prefs = await invoke<Prefs>("get_prefs");
 
+  const modes = el("div", { class: "choices" });
+  const feedInputs: HTMLInputElement[] = [];
+  const syncFeedInputs = (content: ThinkingContent): void => {
+    for (const input of feedInputs) input.disabled = content !== "feeds";
+  };
+  for (const [content, label] of [
+    ["games", "Games"],
+    ["feeds", "Short videos"],
+  ] as const) {
+    const input = el("input", { type: "radio", name: "content" }) as HTMLInputElement;
+    input.checked = prefs.thinkingContent === content;
+    input.addEventListener("change", () => {
+      syncFeedInputs(content);
+      void invoke("set_thinking_content", { content });
+    });
+    modes.append(el("label", { class: "choice" }, input, label));
+  }
+
+  const sites = el("div", { class: "games" });
+  for (const { id, label } of FEED_SITES) {
+    const input = el("input", { type: "checkbox" }) as HTMLInputElement;
+    input.checked = prefs.feedSites.includes(id);
+    input.addEventListener("change", () =>
+      void invoke("set_feed_enabled", { site: id, enabled: input.checked }),
+    );
+    feedInputs.push(input);
+    sites.append(el("label", { class: "toggle" }, input, label));
+  }
+
+  const targets = el("div", { class: "targets" });
+  for (const [target, label, help] of [
+    [
+      "appWindows",
+      "App windows",
+      "Each opens in its own window that hides and pauses when the agent is done. Sign in once; it stays signed in.",
+    ],
+    [
+      "defaultBrowser",
+      "My default browser",
+      "Uses your browser and its logins. Opens new tabs each time; closing them is up to you.",
+    ],
+  ] as const) {
+    const input = el("input", { type: "radio", name: "target" }) as HTMLInputElement;
+    input.checked = prefs.feedTarget === target;
+    input.addEventListener("change", () => void invoke("set_feed_target", { target }));
+    feedInputs.push(input);
+    targets.append(
+      el(
+        "label",
+        { class: "target" },
+        input,
+        el("span", {}, el("strong", {}, label), el("span", { class: "muted" }, help)),
+      ),
+    );
+  }
+  syncFeedInputs(prefs.thinkingContent);
+
   const choices = el("div", { class: "choices" });
   for (const secs of [5, 10, 30, 60]) {
     const input = el("input", { type: "radio", name: "delay" }) as HTMLInputElement;
@@ -306,7 +377,18 @@ async function renderOptions(): Promise<void> {
 
   panel.replaceChildren(
     el("h1", {}, "Options"),
-    el("h2", {}, "show a game after"),
+    el("h2", {}, "while the agent thinks"),
+    modes,
+    el("h2", {}, "short videos to open"),
+    el(
+      "p",
+      { class: "muted" },
+      "Each ticked site opens side by side. These load from the internet; games never do.",
+    ),
+    sites,
+    el("h2", {}, "open them in"),
+    targets,
+    el("h2", {}, "show it after"),
     el(
       "p",
       { class: "muted" },

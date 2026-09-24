@@ -218,6 +218,37 @@ label.choice:has(input:checked) {
   gap: 8px;
 }
 
+.targets {
+  display: grid;
+  gap: 8px;
+  max-width: 62ch;
+}
+
+label.target {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+label.target > span {
+  display: grid;
+  gap: 2px;
+}
+
+label.target:has(input:checked) {
+  border-color: var(--accent);
+}
+
+label:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
 code {
   background: var(--panel);
   border: 1px solid var(--line);
