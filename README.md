@@ -323,6 +323,12 @@ problems privately as described in [SECURITY.md](SECURITY.md).
 
 ---
 
+## Support
+
+agentarcade is free and MIT-licensed, and it stays that way. If it's saved you
+from doom-scrolling through a few agent waits, you can
+[buy me a coffee](https://buymeacoffee.com/noanya).
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
