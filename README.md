@@ -15,7 +15,7 @@ your editor.
 for Windows (`.exe`) or macOS (`.dmg`).
 
 <p align="center">
-  <img src="docs/demo.gif" alt="A short prompt is answered and nothing happens. A longer one crosses ten seconds, a snake game appears, and it hides itself the moment the agent finishes." width="760">
+  <img src="docs/demo.gif" alt="A short prompt is answered and nothing happens. A longer one crosses ten seconds, a snake game appears, and it hides itself the moment the agent finishes. Then short-video mode opens YouTube Shorts, Instagram Reels and TikTok side by side, and they pause and hide when the agent is done. Last, /agentarcade:make has the agent write a new game, semicolon dodge, which joins the rotation and is played." width="760">
 </p>
 
 <p align="center">
