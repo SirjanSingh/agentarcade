@@ -53,6 +53,13 @@ body {
   border-bottom: 1px solid var(--line);
   font-size: 13px;
   letter-spacing: 0.02em;
+  cursor: grab;
+}
+
+/* The drag region is the bar itself, not its children; let clicks on the
+   label and hint fall through so the whole bar drags the window. */
+#titlebar > * {
+  pointer-events: none;
 }
 
 #titlebar .dot {

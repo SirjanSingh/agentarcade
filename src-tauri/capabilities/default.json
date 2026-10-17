@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Everything the game window needs: invoke commands and listen for show/freeze/hide events.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
 }
