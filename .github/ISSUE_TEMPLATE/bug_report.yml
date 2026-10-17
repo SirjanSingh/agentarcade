@@ -1,0 +1,49 @@
+name: Bug report
+description: Something doesn't work the way the README says it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The Status screenshot below answers most of the questions a bug report otherwise takes three rounds to settle.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS (Apple Silicon), macOS (Intel), Linux]
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Coding agent
+      multiple: true
+      options: [Claude Code, Codex, Cursor, Antigravity, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: agentarcade version
+      description: The number in the installer you ran, e.g. agentarcade_2.1.0_x64-setup.exe means 2.1.0.
+      placeholder: "2.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Status screenshot
+      description: Tray, Settings & status, Status tab. Drag the screenshot in here.
+  - type: textarea
+    id: log
+    attributes:
+      label: Log excerpt (optional)
+      description: The last few lines of agentarcade.log, from the logs folder in the app's data directory.
+      render: text

@@ -1,0 +1,27 @@
+name: Game idea
+description: Propose a game for the rotation. You're welcome to build it too.
+labels: ["new game"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Good games here are playable in ten seconds, survive being frozen mid-run, produce one score, and use the keyboard or the mouse, not both. See CONTRIBUTING.md.
+  - type: input
+    id: name
+    attributes:
+      label: Game name
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How it plays
+      description: The controls, and what the single score measures. Say whether lower or higher is better.
+    validations:
+      required: true
+  - type: checkboxes
+    id: build
+    attributes:
+      label: Building it
+      options:
+        - label: I'd like to build this myself

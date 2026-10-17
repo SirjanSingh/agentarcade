@@ -296,6 +296,21 @@ More detail in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
+## Contributing
+
+Contributions are welcome, and new games are the easiest way in: most need no
+Rust at all. Start with an issue labelled
+[`good first issue`](https://github.com/SirjanSingh/agentarcade/labels/good%20first%20issue)
+or [`new game`](https://github.com/SirjanSingh/agentarcade/labels/new%20game),
+and read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. Agent support
+beyond the four above is wanted too, as long as it's built on documented hook
+events.
+
+Please follow the [code of conduct](CODE_OF_CONDUCT.md), and report security
+problems privately as described in [SECURITY.md](SECURITY.md).
+
+---
+
 ## Platform status
 
 | | Status |

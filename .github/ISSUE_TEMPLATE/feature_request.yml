@@ -1,0 +1,20 @@
+name: Feature or agent request
+description: Support for another coding agent, or a change to how the app behaves.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What gets in your way today. Describe the situation before the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you'd like instead
+  - type: textarea
+    id: agent
+    attributes:
+      label: For a new agent
+      description: Link its hook or extension docs, and say which event fires when it starts thinking and which when it stops. Agent support is only added against documented, verified events.

@@ -2,6 +2,23 @@
 
 The most useful contribution is **a new game**. That path is deliberately short.
 
+## Where to start
+
+- Issues labelled [`good first issue`](https://github.com/SirjanSingh/agentarcade/labels/good%20first%20issue)
+  are small and self-contained, and most can be done without a Rust toolchain.
+- Issues labelled [`new game`](https://github.com/SirjanSingh/agentarcade/labels/new%20game)
+  are open game ideas. Comment that you're taking one so two people don't build
+  the same thing.
+- For anything bigger, open an issue first and say what you have in mind. A
+  short conversation beats a large PR that goes in the wrong direction.
+
+**Hacktoberfest:** PRs that close an issue or add a working game get the
+`hacktoberfest-accepted` label once merged. Renamed variables, reworded docs
+and whitespace churn get closed without review.
+
+By contributing you agree your work is released under the [MIT license](LICENSE)
+and that you'll follow the [code of conduct](CODE_OF_CONDUCT.md).
+
 ## Adding a game
 
 A game is one self-contained module. It gets a container element and an API for
@@ -91,6 +108,10 @@ Two rules that are not up for negotiation:
 
 ## Reporting a bug
 
-Include your OS, whether you are on Claude Code or Cursor, and a screenshot of
+Use the bug report form. It asks for your OS, which agent you use (Claude Code,
+Codex, Cursor or Antigravity), and a screenshot of
 tray → **Settings & status…** → **Status**. That panel answers most of the
 questions a bug report otherwise takes three rounds to establish.
+
+Security problems go through the private channel in [SECURITY.md](SECURITY.md),
+not a public issue.
