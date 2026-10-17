@@ -310,6 +310,9 @@ async function renderWelcome(): Promise<void> {
   const test = el("button", { class: "action", type: "button" }, "Play a game now");
   test.addEventListener("click", () => void invoke("play_now"));
 
+  const star = el("button", { class: "action", type: "button" }, "Star on GitHub");
+  star.addEventListener("click", () => void invoke("open_link", { name: "repo" }));
+
   const done = el("button", { class: "action primary", type: "button" }, "Done");
   done.addEventListener("click", async () => {
     await invoke("complete_onboarding");
@@ -337,6 +340,13 @@ async function renderWelcome(): Promise<void> {
     el("h2", {}, "check it works"),
     el("p", { class: "muted" }, "This opens a random game exactly as a hook would."),
     el("div", { class: "actions" }, test, done),
+    el("h2", {}, "if you like it"),
+    el(
+      "p",
+      { class: "muted" },
+      "agentarcade is free and open source. A star on GitHub is the easiest way to help other developers find it, and issues and pull requests are welcome.",
+    ),
+    el("div", { class: "actions" }, star),
   );
 }
 
@@ -535,6 +545,10 @@ async function renderGames(): Promise<void> {
 
 for (const tab of tabs) {
   tab.addEventListener("click", () => setView(tab.dataset.view as ViewName));
+}
+
+for (const link of document.querySelectorAll<HTMLButtonElement>("#signature [data-link]")) {
+  link.addEventListener("click", () => void invoke("open_link", { name: link.dataset.link }));
 }
 
 void listen<string>("settings:view", (next) => setView(next as ViewName));

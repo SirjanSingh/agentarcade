@@ -67,6 +67,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let open_stats = MenuItem::with_id(app, "open_stats", "Open stats file", true, None::<&str>)?;
     let check_updates =
         MenuItem::with_id(app, "check_updates", "Check for updates…", true, None::<&str>)?;
+    let star = MenuItem::with_id(app, "star", "Star on GitHub…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit agentarcade", true, None::<&str>)?;
 
     let menu = Menu::with_items(
@@ -85,6 +86,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             &open_log,
             &open_stats,
             &check_updates,
+            &star,
             &PredefinedMenuItem::separator(app)?,
             &quit,
         ],
@@ -156,6 +158,12 @@ fn on_menu<R: Runtime>(app: &AppHandle<R>, id: &str) {
         }
         "check_updates" => {
             check_for_updates(app);
+            crate::logic::tracker::Action::Nothing
+        }
+        "star" => {
+            if let Err(err) = crate::open_named_link(app, "repo") {
+                alog!("could not open the repo page: {err}");
+            }
             crate::logic::tracker::Action::Nothing
         }
         "quit" => {

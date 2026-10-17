@@ -423,6 +423,31 @@ pub fn open_log_file<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// The only addresses the app ever opens in the browser. The webview names one
+/// and never passes a URL, so even a compromised page cannot send the user's
+/// browser somewhere else.
+pub fn link_url(name: &str) -> Option<&'static str> {
+    match name {
+        "repo" => Some("https://github.com/SirjanSingh/agentarcade"),
+        "coffee" => Some("https://buymeacoffee.com/noanya"),
+        "author" => Some("https://github.com/SirjanSingh"),
+        _ => None,
+    }
+}
+
+pub fn open_named_link<R: Runtime>(app: &AppHandle<R>, name: &str) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = link_url(name).ok_or_else(|| format!("unknown link: {name}"))?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_link(app: AppHandle, name: String) -> Result<(), String> {
+    open_named_link(&app, &name)
+}
+
 #[tauri::command]
 fn open_settings(app: AppHandle, view: Option<String>) {
     window::open_settings(&app, view.as_deref().unwrap_or("status"));
@@ -515,6 +540,7 @@ fn main() {
             play_now,
             open_settings,
             open_log,
+            open_link,
             list_packs,
             delete_pack,
             maker_skill_status,
@@ -734,4 +760,18 @@ fn main() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod link_tests {
+    use super::link_url;
+
+    #[test]
+    fn only_named_links_open_and_all_are_https() {
+        for name in ["repo", "coffee", "author"] {
+            assert!(link_url(name).is_some_and(|u| u.starts_with("https://")), "{name}");
+        }
+        assert_eq!(link_url("https://example.com"), None);
+        assert_eq!(link_url(""), None);
+    }
 }
