@@ -9,7 +9,7 @@
   --muted: #8b909b;
   --accent: #7fd6a4;
   --warn: #e0704a;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", Consolas, monospace;
 }
 
 @media (prefers-color-scheme: light) {
@@ -33,7 +33,7 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
 }
 

@@ -6,7 +6,7 @@
   --muted: #8b909b;
   --accent: #7fd6a4;
   --warn: #e0704a;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Mono", Consolas, monospace;
 }
 
 @media (prefers-color-scheme: light) {
