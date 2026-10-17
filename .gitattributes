@@ -1,0 +1,3 @@
+# The skill is embedded with include_str! and its frontmatter is checked
+# byte-for-byte, so it must stay LF even on a Windows checkout.
+src-tauri/skill/** text eol=lf
