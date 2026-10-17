@@ -17,9 +17,13 @@ use crate::prefs::{FeedSite, FeedTarget};
 use crate::window;
 
 const LABEL_PREFIX: &str = "feed-";
-const WIDTH: f64 = 800.0;
-const HEIGHT: f64 = 1440.0;
+const WIDTH: f64 = 590.0;
+const HEIGHT: f64 = 836.0;
 const GAP: f64 = 12.0;
+/// Share of the work area's height a reel takes: 836 of the ~1104 logical
+/// pixels on a 1440p screen at 125%, so a laptop gets a proportionally smaller
+/// window instead of one that fills it.
+const HEIGHT_SHARE: f64 = 0.76;
 
 /// Pause every playing element and mark it, so resume only restarts what the
 /// user was actually watching. Hiding a webview does not stop its audio.
@@ -99,6 +103,9 @@ fn show_window<R: Runtime>(app: &AppHandle<R>, site: FeedSite, x: f64, y: f64, w
         // Left where the user put it last time; only the first open is tiled.
         let _ = existing.show();
         let _ = existing.unminimize();
+        // Not always-on-top, so bring it forward once; after that a click on
+        // another window sends it back like any normal window.
+        let _ = existing.set_focus();
         let _ = existing.eval(RESUME_SCRIPT);
         return;
     }
@@ -112,7 +119,8 @@ fn show_window<R: Runtime>(app: &AppHandle<R>, site: FeedSite, x: f64, y: f64, w
         .position(x, y)
         .resizable(true)
         .decorations(true)
-        .always_on_top(true)
+        .always_on_top(false)
+        .focused(true)
         .build();
 
     match built {
@@ -155,10 +163,11 @@ fn layout(count: usize, mx: f64, my: f64, mw: f64, mh: f64) -> Vec<(f64, f64, f6
         return Vec::new();
     }
     let n = count as f64;
-    // Shrink to fit rather than spill off-screen on a small display.
+    // Scale to the screen rather than use a fixed size: the same share of the
+    // height on a laptop as on a large monitor, capped at the full size.
     // Height first, then width at the same ratio, so a short screen keeps the
     // reel's tall shape instead of a squat window with bars beside the video.
-    let h = HEIGHT.min(mh - 2.0 * GAP - 60.0).max(360.0);
+    let h = HEIGHT.min(mh * HEIGHT_SHARE).max(360.0);
     let w = (h * WIDTH / HEIGHT).min((mw - GAP * (n + 1.0)) / n).max(240.0);
     let total = w * n + GAP * (n - 1.0);
     let left = mx + ((mw - total) / 2.0).max(0.0);
@@ -197,9 +206,22 @@ mod tests {
     }
 
     #[test]
-    fn one_reel_on_a_1440p_screen_is_large_and_keeps_its_shape() {
-        let (_, _, w, h) = layout(1, 0.0, 0.0, 2560.0, 1392.0)[0];
-        assert!(h > 1200.0, "{h}");
+    fn one_reel_opens_at_full_size_on_a_1440p_screen() {
+        let (_, _, w, h) = layout(1, 0.0, 0.0, 2048.0, 1104.0)[0];
+        assert!((h - HEIGHT).abs() < 2.0 && (w - WIDTH).abs() < 2.0, "{w}x{h}");
+    }
+
+    #[test]
+    fn a_laptop_gets_the_same_share_of_its_screen() {
+        // 1920x1080 at 125%, minus the taskbar.
+        let (_, _, _, h) = layout(1, 0.0, 0.0, 1536.0, 816.0)[0];
+        assert!((h / 816.0 - HEIGHT_SHARE).abs() < 0.01, "{h}");
+    }
+
+    #[test]
+    fn a_short_screen_keeps_the_reel_shape() {
+        let (_, _, w, h) = layout(1, 0.0, 0.0, 1280.0, 720.0)[0];
+        assert!(h < HEIGHT, "{h}");
         assert!((w / h - WIDTH / HEIGHT).abs() < 0.01, "{w}x{h}");
     }
 
