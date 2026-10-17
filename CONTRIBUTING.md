@@ -12,9 +12,9 @@ The most useful contribution is **a new game**. That path is deliberately short.
 - For anything bigger, open an issue first and say what you have in mind. A
   short conversation beats a large PR that goes in the wrong direction.
 
-**Hacktoberfest:** PRs that close an issue or add a working game get the
-`hacktoberfest-accepted` label once merged. Renamed variables, reworded docs
-and whitespace churn get closed without review.
+Renamed variables, reworded docs and whitespace churn get closed without
+review. So do PRs that were clearly generated and never run: if it's a game,
+show it working.
 
 By contributing you agree your work is released under the [MIT license](LICENSE)
 and that you'll follow the [code of conduct](CODE_OF_CONDUCT.md).

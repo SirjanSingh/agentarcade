@@ -10,7 +10,7 @@ Read that for the full text. The short version:
 - No harassment, insults, or unwelcome attention, in issues, PRs, discussions,
   or anywhere you are representing the project.
 - Spam PRs (renamed variables, reworded READMEs, whitespace churn) get closed
-  without review. That includes Hacktoberfest.
+  without review.
 
 ## Reporting
 
