@@ -21,7 +21,13 @@ tauri-plugin-opener = "2"
 # In-app updates. Artifacts are signed at release time with a key that
 # lives only in the TAURI_SIGNING_PRIVATE_KEY repo secret; the binary
 # carries the matching public key and refuses anything it cannot verify.
-tauri-plugin-updater = "2"
+# Without the default `zip` feature: it pulls in zip 4.x (RUSTSEC-2026-0367,
+# -0368, -0369; fixed only in 9.x, which the plugin does not support yet) and
+# is used solely for legacy .zip Windows updates and Linux AppImage updates.
+# We publish NSIS .exe updates for Windows and .app.tar.gz for macOS, whose
+# tar/flate2 dependencies are unconditional. Turn it back on before shipping
+# Linux self-updates.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 # preserve_order keeps the user's settings.json key order intact through an
