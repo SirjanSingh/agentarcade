@@ -17,8 +17,8 @@ use crate::prefs::{FeedSite, FeedTarget};
 use crate::window;
 
 const LABEL_PREFIX: &str = "feed-";
-const WIDTH: f64 = 400.0;
-const HEIGHT: f64 = 720.0;
+const WIDTH: f64 = 800.0;
+const HEIGHT: f64 = 1440.0;
 const GAP: f64 = 12.0;
 
 /// Pause every playing element and mark it, so resume only restarts what the
@@ -156,8 +156,10 @@ fn layout(count: usize, mx: f64, my: f64, mw: f64, mh: f64) -> Vec<(f64, f64, f6
     }
     let n = count as f64;
     // Shrink to fit rather than spill off-screen on a small display.
-    let w = WIDTH.min((mw - GAP * (n + 1.0)) / n).max(240.0);
+    // Height first, then width at the same ratio, so a short screen keeps the
+    // reel's tall shape instead of a squat window with bars beside the video.
     let h = HEIGHT.min(mh - 2.0 * GAP - 60.0).max(360.0);
+    let w = (h * WIDTH / HEIGHT).min((mw - GAP * (n + 1.0)) / n).max(240.0);
     let total = w * n + GAP * (n - 1.0);
     let left = mx + ((mw - total) / 2.0).max(0.0);
     let top = my + ((mh - h) / 2.0).max(0.0);
@@ -192,6 +194,13 @@ mod tests {
         let (rx, _, rw, _) = slots[2];
         assert!(lx >= 0.0 && rx + rw <= 1280.0, "{slots:?}");
         assert!(slots[0].0 + slots[0].2 < slots[1].0, "windows must not overlap");
+    }
+
+    #[test]
+    fn one_reel_on_a_1440p_screen_is_large_and_keeps_its_shape() {
+        let (_, _, w, h) = layout(1, 0.0, 0.0, 2560.0, 1392.0)[0];
+        assert!(h > 1200.0, "{h}");
+        assert!((w / h - WIDTH / HEIGHT).abs() < 0.01, "{w}x{h}");
     }
 
     #[test]
