@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
@@ -18,6 +18,23 @@ pub const HOOKS_ITEM: &str = "hooks_toggle";
 
 fn delay_item_id(secs: u64) -> String {
     format!("delay_{secs}")
+}
+
+/// The "Show a game" submenu, kept so a choice can re-tick its items. Clicking
+/// a check item toggles only that item, so without this two delays could look
+/// selected at once, or none after clicking the current one.
+struct DelayMenu<R: Runtime>(Submenu<R>);
+
+/// Tick exactly the item for `secs` and untick the rest.
+fn sync_delay_ticks<R: Runtime>(app: &AppHandle<R>, secs: u64) {
+    let Some(menu) = app.try_state::<DelayMenu<R>>() else {
+        return;
+    };
+    for choice in SHOW_DELAY_CHOICES {
+        if let Some(MenuItemKind::Check(item)) = menu.0.get(&delay_item_id(choice)) {
+            let _ = item.set_checked(choice == secs);
+        }
+    }
 }
 
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -58,6 +75,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .map(|i| i as &dyn tauri::menu::IsMenuItem<R>)
         .collect();
     let delay = Submenu::with_id_and_items(app, "delay", "Show a game", true, &delay_refs)?;
+    app.manage(DelayMenu(delay.clone()));
 
     let hooks_item = MenuItem::with_id(app, HOOKS_ITEM, hooks_label(app), true, None::<&str>)?;
     let autostart = MenuItem::with_id(app, "autostart", autostart_label(app), true, None::<&str>)?;
@@ -206,6 +224,7 @@ fn set_show_delay<R: Runtime>(app: &AppHandle<R>, secs: u64) {
             .set_show_delay(prefs.show_delay());
     }
     state.save_prefs();
+    sync_delay_ticks(app, secs);
     alog!("show delay set to {secs}s");
 }
 
