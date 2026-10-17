@@ -125,9 +125,11 @@ which is already on most machines.
 
 1. Download `agentarcade_*_x64-setup.exe` from
    [Releases](https://github.com/SirjanSingh/agentarcade/releases/latest)
-2. Run it. A setup window opens on first launch and walks you through the two
-   things that need doing.
-3. After that it lives in the system tray, in the hidden icon area.
+2. Run it. The installer isn't code-signed yet, so Windows SmartScreen may say
+   "Windows protected your PC". Click **More info**, then **Run anyway**.
+3. A setup window opens on first launch and walks you through the two things
+   that need doing.
+4. After that it lives in the system tray, in the hidden icon area.
 
 Closed the setup window by accident? It's under tray, **Settings & status**.
 
@@ -320,13 +322,6 @@ problems privately as described in [SECURITY.md](SECURITY.md).
 | **Linux** | The code is there and builds an AppImage, but it isn't shipped on Releases and is community-tested only. |
 
 ---
-
-## Support
-
-agentarcade is free and MIT-licensed, and it stays that way. If it's saved you
-from doom-scrolling through a few agent waits, you can
-[sponsor it on GitHub](https://github.com/sponsors/SirjanSingh) or
-[buy me a coffee](https://buymeacoffee.com/sirjansingh).
 
 ## License
 

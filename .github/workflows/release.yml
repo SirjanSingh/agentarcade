@@ -72,7 +72,9 @@ jobs:
           tagName: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseName: agentarcade ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           releaseBody: |
-            See the [README](https://github.com/SirjanSingh/agentarcade#install-on-windows-recommended) for setup.
+            See the [README](https://github.com/SirjanSingh/agentarcade#install-on-windows) for setup.
+
+            **Windows (unsigned):** If SmartScreen says "Windows protected your PC", click **More info**, then **Run anyway**.
 
             **macOS (unsigned):** After opening the `.dmg`, if macOS blocks the app, right-click → Open once, or run:
             `xattr -cr /Applications/agentarcade.app`
